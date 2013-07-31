@@ -8,7 +8,7 @@ corner-cases are more easily tested in a more dedicated framework
 (ie. not a collection of shell scripts, but something well-designed
 and written in a real programming language).
 
-  ### Status
+### Status
 
 This is work-in-progress, mainly dedicated to test the new `opam
 update` strategy (see https://github.com/OCamlPro/opam/pull/719). As
