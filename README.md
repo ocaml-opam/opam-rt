@@ -10,7 +10,9 @@ and written in a real programming language).
 
 ### Status
 
-This is work-in-progress, mainly dedicated to test the new `opam
-update` strategy (see https://github.com/OCamlPro/opam/pull/719). As
-it is still the early days, the API will evolve quite quickly, but any
-help to write some regression tests will be greatly appreciated.
+This is work-in-progress, mainly dedicated to test the new [opam
+update strategy](https://github.com/OCamlPro/opam/pull/719). As
+it is still the early days, the API will certainly evolve quite
+quickly.
+
+Any external contribution, as testing ideas or pull request, is most than welcome.
