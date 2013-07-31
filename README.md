@@ -1,8 +1,14 @@
 ## opam-rt
 
-The goal of `opam-rt` is to test for regression in OPAM as most corner-cases issues as quite hard to test in the (limited) OPAM test-suite.
+The goal of opam-rt is to test for regressions in OPAM.
 
-### Status
+OPAM has already its own [test
+suite](https://github.com/OCamlPro/opam/tree/master/tests) but some
+corner-cases are more easily tested in a more dedicated framework
+(ie. not a collection of shell scripts, but something well-designed
+and written in a real programming language).
+
+  ### Status
 
 This is work-in-progress, mainly dedicated to test the new `opam
 update` strategy (see https://github.com/OCamlPro/opam/pull/719). As
