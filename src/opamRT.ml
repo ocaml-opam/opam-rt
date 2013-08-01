@@ -64,9 +64,7 @@ let init_base kind path =
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
   let repo_name = OpamRepositoryName.of_string "base" in
-  let repo_kind = match kind with
-    | None -> `git
-    | Some k -> k in
+  let repo_kind = guess_repository_kind kind repo_root in
   let repo_address = match repo_kind with
     | `git   -> OpamFilename.raw_dir
                   (Printf.sprintf "%s#%s"
