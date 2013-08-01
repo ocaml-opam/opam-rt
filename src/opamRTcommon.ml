@@ -185,6 +185,7 @@ module OPAM_bin = struct
 
   let init opam_root repo =
     let kind = string_of_repository_kind repo.repo_kind in
+    OpamGlobals.sync_archives := true;
     opam opam_root "init" [
       OpamRepositoryName.to_string repo.repo_name;
       OpamFilename.Dir.to_string repo.repo_address;
@@ -193,18 +194,75 @@ module OPAM_bin = struct
     ]
 
   let update opam_root =
-    opam opam_root "update" []
+    opam opam_root "update" ["--sync-archives"]
 
 end
 
 module Check = struct
 
-  exception Sync_error of (string * file_attribute * filename) list
+  module A = OpamFilename.Attribute
+
+  type error = {
+    source: string;
+    attr  : file_attribute;
+    file  : filename;
+  }
+
+  exception Sync_errors of error list
+
+  let sync_errors errors =
+    OpamGlobals.error "\n%s" (Color.red " -- Sync error --");
+    List.iter (fun { source; attr; file } ->
+        OpamGlobals.error "%s: %s\n%s\n%s"
+          source
+          (A.to_string attr) (OpamFilename.to_string file) (OpamFilename.read file)
+      ) errors;
+    raise (Sync_errors errors)
+
+  let set map =
+    A.Map.fold (fun a _ set -> A.Set.add a set) map A.Set.empty
+
+  exception Found of file_attribute * filename
+
+  let find_binding fn map =
+    try A.Map.iter (fun a f -> if fn a f then raise (Found (a,f))) map; raise Not_found
+    with Found (a,f) -> (a,f)
+
+  let archives repo root =
+    let archives_repo = OpamPath.Repository.archives_dir repo in
+    let archives_opam = OpamPath.archives_dir root in
+    let attributes dir =
+      let files = OpamFilename.files dir in
+      List.fold_left (fun attrs file ->
+          A.Map.add (OpamFilename.to_attribute dir file) file attrs
+        ) A.Map.empty files in
+    let attrs_repo = attributes archives_repo in
+    let attrs_opam = attributes archives_opam in
+    let check (s1, m1) (s2, m2) =
+      A.Map.fold (fun a1 f1 errors ->
+          let same_base a2 _ = (A.base a1 = A.base a2) in
+          if A.Map.exists same_base m2 then
+            if A.Map.mem a1 m2 then errors
+            else
+              let a2, f2 = find_binding same_base m2 in
+              { source = s1; attr = a1; file = f1 }
+              :: { source = s2; attr = a2; file = f2 }
+              :: errors
+          else
+            errors
+        ) m1 [] in
+
+    let errors =
+      let opam = ("opam", attrs_opam) in
+      let repo = ("repository", attrs_repo) in
+      check opam repo @ check repo opam in
+
+    if errors <> [] then
+      sync_errors errors
 
   let packages repo root =
     let packages_repo = OpamPath.Repository.packages_dir repo in
     let packages_opam = OpamPath.packages_dir root in
-    let module A = OpamFilename.Attribute in
     let attributes dir =
       let all = OpamFilename.rec_files dir in
       let files = List.filter (fun f ->
@@ -222,7 +280,6 @@ module Check = struct
     let attrs_repo = attributes packages_repo in
     let attrs_opam = attributes packages_opam in
 
-    let set map = A.Map.fold (fun a _ set -> A.Set.add a set) map A.Set.empty in
     let attrs_repo_s = set attrs_repo in
     let attrs_opam_s = set attrs_opam in
 
@@ -230,22 +287,20 @@ module Check = struct
     let diff2 = A.Set.diff attrs_opam_s attrs_repo_s in
     let diff = A.Set.union diff1 diff2 in
 
-    if not (A.Set.is_empty diff) then (
-      let errors = A.Set.fold (fun a errors ->
-          let source, attr, file =
-            if A.Map.mem a attrs_repo then
-              ("repository", a, A.Map.find a attrs_repo)
-            else
-              ("opam", a, A.Map.find a attrs_opam) in
-          (source, attr, file) :: errors
-        ) diff [] in
-      OpamGlobals.error "\n%s" (Color.red " -- Sync error --");
-      List.iter (fun (source, attr, file) ->
-          OpamGlobals.error "%s: %s\n%s\n%s"
-            source
-            (A.to_string attr) (OpamFilename.to_string file) (OpamFilename.read file)
-        ) errors;
-      raise (Sync_error errors)
-    )
+    let errors = A.Set.fold (fun a errors ->
+        let source, attr, file =
+          if A.Map.mem a attrs_repo then
+            ("repository", a, A.Map.find a attrs_repo)
+          else
+            ("opam", a, A.Map.find a attrs_opam) in
+        { source; attr; file } :: errors
+      ) diff [] in
+
+    if errors <> [] then
+      sync_errors errors
+
+  let packages repo root =
+    packages repo root;
+    archives repo root
 
 end
