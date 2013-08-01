@@ -55,8 +55,10 @@ let init_base kind path =
     (OpamFilename.Dir.to_string repo_root);
   let commits =
     OpamRTinit.create_single_repo (OpamRepository.local repo_root) test_tag in
-  List.iter (fun (pkg, commit) ->
-      OpamGlobals.msg "%s adds %s\n" commit pkg
+  List.iter (fun (pkg, commits) ->
+      List.iter (fun (commit, file) ->
+          OpamGlobals.msg "%s adds %s (%s)\n" commit (OpamFilename.to_string file) pkg
+        ) commits
     ) commits;
 
   let opam_root = path / "opam" in

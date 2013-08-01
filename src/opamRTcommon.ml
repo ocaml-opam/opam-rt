@@ -78,11 +78,12 @@ module Packages = struct
   open OpamFile
 
   type t = {
-    pkg   : string;
-    prefix: string option;
-    opam  : OPAM.t;
-    url   : URL.t option;
-    descr : string option;
+    pkg    : string;
+    prefix : string option;
+    opam   : OPAM.t;
+    url    : URL.t option;
+    descr  : Descr.t option;
+    archive: string option;
   }
 
   let opam package seed =
@@ -96,43 +97,56 @@ module Packages = struct
     URL.with_checksum url checksum
 
   let descr seed =
-    "Test " ^ seed
+    Descr.of_string ("Test " ^ seed)
 
-  let files repo t =
-    let nv = OpamPackage.of_string t.pkg in
-    let opam = OpamPath.Repository.opam repo t.prefix nv in
-    let descr = OpamPath.Repository.descr repo t.prefix nv in
-    let url = OpamPath.Repository.url repo t.prefix nv in
-    opam, descr, url
+  let files repo prefix nv =
+    let opam = OpamPath.Repository.opam repo prefix nv in
+    let descr = OpamPath.Repository.descr repo prefix nv in
+    let url = OpamPath.Repository.url repo prefix nv in
+    let archive = OpamPath.Repository.archive repo nv in
+    opam, descr, url, archive
+
+  let files_of_t repo t =
+    files repo t.prefix (OpamPackage.of_string t.pkg)
+
+  let write_o f = function
+    | None   -> ()
+    | Some x -> f x
 
   let write repo t =
-    let opam, descr, url = files repo t in
+    let opam, descr, url, archive = files_of_t repo t in
     OPAM.write opam t.opam;
-    begin match t.url with
-      | None   -> ()
-      | Some u -> URL.write url u
-    end;
-    match t.descr with
-    | None   -> ()
-    | Some d -> OpamFilename.write descr d
+    write_o (Descr.write descr) t.descr;
+    write_o (URL.write url) t.url;
+    write_o (OpamFilename.write archive) t.archive
+
+  let read_o f file =
+    if OpamFilename.exists file then Some (f file)
+    else None
 
   let read repo prefix nv =
-    let opam = OpamPath.Repository.opam repo prefix nv in
-    let descr = OpamPath.Repository.opam repo prefix nv in
-    let url = OpamPath.Repository.opam repo prefix nv in
+    let opam, descr, url, archive = files repo prefix nv in
     let opam = OPAM.read opam in
-    let descr =
-      if OpamFilename.exists descr then Some (OpamFilename.read descr) else None in
-    let url = if OpamFilename.exists url then Some (URL.read url) else None in
+    let descr = read_o Descr.read descr in
+    let url = read_o URL.read url in
+    let archive = read_o OpamFilename.read archive in
     let pkg = OpamPackage.to_string nv in
-    { pkg; prefix; opam; descr; url }
+    { pkg; prefix; opam; descr; url; archive }
 
   let add repo t =
     write repo t;
-    let opam, descr, url = files repo t in
-    List.iter (Git.add repo) [opam; descr; url];
-    Git.commit repo ("Add package " ^ t.pkg);
-    (t.pkg, Git.revision repo)
+    let opam, descr, url, archive = files_of_t repo t in
+    let commit file =
+      if OpamFilename.exists file then (
+        Git.add repo file;
+        let msg =
+          Printf.sprintf "Add package %s (%s)" t.pkg (OpamFilename.to_string file) in
+        Git.commit repo msg;
+        Some (Git.revision repo, file);
+      ) else
+        None in
+    let commits = OpamMisc.filter_map commit [opam; descr; url; archive] in
+    (t.pkg, commits)
 
 end
 

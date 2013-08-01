@@ -18,19 +18,21 @@ open OpamRTcommon
 open OpamTypes
 
 let a1 seed = Packages.({
-    pkg    = "a.1";
-    prefix = None;
-    opam   = opam "a.1" seed;
-    url    = None;
-    descr  = None;
+    pkg     = "a.1";
+    prefix  = None;
+    opam    = opam "a.1" seed;
+    url     = None;
+    descr   = None;
+    archive = None;
   })
 
 let a2 seed = Packages.({
-    pkg    = "a.2";
-    prefix = None;
-    opam   = opam "a.2" seed;
-    url    = None;
-    descr  = None;
+    pkg     = "a.2";
+    prefix  = None;
+    opam    = opam "a.2" seed;
+    url     = None;
+    descr   = None;
+    archive = None;
   })
 
 let all = [
