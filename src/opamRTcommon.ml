@@ -59,6 +59,9 @@ module Git = struct
   let init repo =
     exec repo ["git"; "init"]
 
+  let tag repo tag =
+    exec repo ["git"; "tag"; "-f"; tag]
+
   let add repo file =
     if OpamFilename.exists file then
       let file = OpamFilename.remove_prefix repo.repo_root file in
@@ -149,16 +152,20 @@ end
 module OPAM_bin = struct
 
   let opam opam_root command args =
+    let debug = if !OpamGlobals.debug then ["--debug"] else [] in
     OpamSystem.command
       ("opam" :: command ::
          ["--root"; (OpamFilename.Dir.to_string opam_root)]
+         @ debug
          @ args)
 
   let init opam_root repo =
+    let kind = string_of_repository_kind repo.repo_kind in
     opam opam_root "init" [
       OpamRepositoryName.to_string repo.repo_name;
       OpamFilename.Dir.to_string repo.repo_address;
       "--no-setup"; "--no-base-packages";
+      "--kind"; kind
     ]
 
   let update opam_root =

@@ -34,6 +34,8 @@ let run f x =
     OpamGlobals.display_messages := true;
     error e
 
+let test_tag = "test"
+
 let init_base path =
   log "init-base %s\n" (OpamFilename.Dir.to_string path);
   if OpamFilename.exists_dir path then
@@ -44,7 +46,8 @@ let init_base path =
   OpamGlobals.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
-  let commits = OpamRTinit.create_single_repo (OpamRepository.local repo_root) in
+  let commits =
+    OpamRTinit.create_single_repo (OpamRepository.local repo_root) test_tag in
   List.iter (fun (pkg, commit) ->
       OpamGlobals.msg "%s adds %s\n" commit pkg
     ) commits;
@@ -54,11 +57,14 @@ let init_base path =
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
   let repo_name = OpamRepositoryName.of_string "base" in
+  let repo_address =
+    OpamFilename.raw_dir
+      (Printf.sprintf "%s#%s" (OpamFilename.Dir.to_string repo_root) test_tag) in
   let repo = {
     repo_name;
     repo_root     = OpamPath.Repository.create opam_root repo_name;
     repo_priority = 0;
-    repo_address  = repo_root;
+    repo_address;
     repo_kind     = `git;
   } in
   OpamGlobals.display_messages := false;
@@ -82,6 +88,7 @@ let test_base path =
   List.iter (fun (commit) ->
       OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo commit;
+      Git.tag repo test_tag;
       OPAM_bin.update root;
       Check.packages repo root;
     ) (commits @ (List.rev commits))

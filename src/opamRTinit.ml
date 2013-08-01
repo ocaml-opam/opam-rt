@@ -40,7 +40,9 @@ let all = [
   a2 1;
 ]
 
-let create_single_repo repo =
+let create_single_repo repo tag =
   OpamFilename.mkdir repo.repo_root;
   Git.init repo;
-  List.map (Packages.add repo) all
+  let commits = List.map (Packages.add repo) all in
+  Git.tag repo tag;
+  commits
