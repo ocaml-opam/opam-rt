@@ -114,9 +114,10 @@ let default =
        \n\
        The most commonly used opam commands are:\n\
       \    init         %s\n\
+      \    test         %s\n\
        \n\
        See 'opam-rt help <command>' for more information on a specific command.\n"
-      init_doc in
+      init_doc test_doc in
   Term.(pure usage $global_options),
   Term.info "opam"
     ~version
@@ -125,7 +126,8 @@ let default =
     ~man
 
 let commands = [
-  init
+  init;
+  test
 ]
 
 let () =

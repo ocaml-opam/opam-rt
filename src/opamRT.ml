@@ -16,63 +16,76 @@
 
 open OpamFilename.OP
 open OpamRTcommon
+open OpamTypes
+
+let log = OpamGlobals.log "RT"
+
+let ok () =
+  OpamGlobals.msg "%s\n%!" (Color.green "[SUCCESS]")
+
+let error e =
+  OpamGlobals.msg "%s\n%s\n%!"
+    (Printexc.to_string e)
+    (Color.red "[ERROR]")
+
+let run f x =
+  try f x; ok ()
+  with e ->
+    OpamGlobals.display_messages := true;
+    error e
 
 let init_base path =
+  log "init-base %s\n" (OpamFilename.Dir.to_string path);
+  if OpamFilename.exists_dir path then
+    OpamGlobals.error_and_exit "%s already exists." (OpamFilename.Dir.to_string path);
+  OpamFilename.mkdir path;
+
   let repo_root = path / "repo" in
-  let opam_root = path / "opam" in
-  let repo = OpamRepository.local repo_root in
   OpamGlobals.msg
-    "Creating a new repository in %s\n"
+    "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
-  let commits = OpamRTinit.create_single_repo repo in
+  let commits = OpamRTinit.create_single_repo (OpamRepository.local repo_root) in
   List.iter (fun (pkg, commit) ->
       OpamGlobals.msg "%s adds %s\n" commit pkg
     ) commits;
-  OpamGlobals.msg
-    "Initializing an OPAM instance in %s\n"
-    (OpamFilename.Dir.to_string opam_root);
-  OPAM.init repo opam_root
 
-let check_packages_in_sync repo root =
-  let packages_repo = OpamPath.Repository.packages_dir repo in
-  let packages_opam = OpamPath.packages_dir root in
-  let module A = OpamFilename.Attribute in
-  let attributes dir =
-    let all = OpamFilename.rec_files dir in
-    let files = List.filter (fun f ->
-        OpamFilename.ends_with "opam" f
-        || OpamFilename.ends_with "url" f
-        || OpamFilename.ends_with "descr" f
-        (* XXX: deal with archive files *)
-      ) all in
-    List.fold_left (fun attrs f ->
-        let attr = OpamFilename.to_attribute dir f in
-        A.Set.add attr attrs
-      ) A.Set.empty files in
-  let attrs_repo = attributes packages_repo in
-  let attrs_opam = attributes packages_opam in
-  let diff1 = A.Set.diff attrs_repo attrs_opam in
-  let diff2 = A.Set.diff attrs_opam attrs_repo in
-  let diff = A.Set.union diff1 diff2 in
-  if not (A.Set.is_empty diff) then (
-    A.Set.iter (fun a ->
-        OpamGlobals.msg "error: %s\n" (A.to_string a)
-      ) diff;
-    failwith "package metadata not in sync"
-  )
+  let opam_root = path / "opam" in
+  OpamGlobals.msg
+    "Initializing an OPAM instance in %s/ ...\n"
+    (OpamFilename.Dir.to_string opam_root);
+  let repo_name = OpamRepositoryName.of_string "base" in
+  let repo = {
+    repo_name;
+    repo_root     = OpamPath.Repository.create opam_root repo_name;
+    repo_priority = 0;
+    repo_address  = repo_root;
+    repo_kind     = `git;
+  } in
+  OpamGlobals.display_messages := false;
+  OPAM.init opam_root repo;
+  OpamGlobals.display_messages := true
+
+let init_base path =
+  run init_base path
 
 (* First basic test: we verify that the global contents is the same as
    the repository contents after each new commit in the repository +
    upgrade. *)
 let test_base path =
+  log "test-base %s" (OpamFilename.Dir.to_string path);
   let repo =
     let root = path / "repo" in
     OpamRepository.local root in
   let root = path / "opam" in
   let commits = Git.commits repo in
+  OpamGlobals.msg "Commits:\n  %s\n" (String.concat "\n  " commits);
   List.iter (fun (commit) ->
+      OpamGlobals.msg "\n%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo commit;
       OPAM.update root;
-      check_packages_in_sync repo root
+      Check.packages repo root;
     ) commits;
-  OpamGlobals.msg "test_update_base: SUCCESS!\n"
+  ok ()
+
+let test_base path =
+  run test_base path

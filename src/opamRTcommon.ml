@@ -16,6 +16,20 @@
 
 open OpamTypes
 
+
+module Color = struct
+
+  let red fmt =
+    Printf.ksprintf (fun s -> Printf.sprintf "\027[31m%s\027[m" s) fmt
+
+  let green fmt =
+    Printf.ksprintf (fun s -> Printf.sprintf "\027[32m%s\027[m" s) fmt
+
+  let yellow fmt =
+    Printf.ksprintf (fun s -> Printf.sprintf "\027[33m%s\027[m" s) fmt
+
+end
+
 module Git = struct
 
   let exec repo command =
@@ -40,7 +54,7 @@ module Git = struct
     return_one_line repo [ "git"; "rev-parse"; "HEAD" ]
 
   let commits repo =
-    return repo ["git"; "log"; "--pretty=format:%%H"]
+    return repo ["git"; "log"; "master"; "--pretty=format:%H"]
 
   let init repo =
     exec repo ["git"; "init"]
@@ -120,13 +134,66 @@ end
 
 module OPAM = struct
 
-  let init repo path =
-    OpamGlobals.root_dir := OpamFilename.Dir.to_string path;
+  let init opam_root repo =
+    OpamGlobals.root_dir := OpamFilename.Dir.to_string opam_root;
     OpamClient.API.init repo OpamCompiler.system
       ~jobs:1 `sh (OpamFilename.raw "dummy") `no
 
   let update path =
     OpamGlobals.root_dir := OpamFilename.Dir.to_string path;
     OpamClient.API.update []
+
+end
+
+module Check = struct
+
+  exception Sync_error of (string * file_attribute * filename) list
+
+  let packages repo root =
+    let packages_repo = OpamPath.Repository.packages_dir repo in
+    let packages_opam = OpamPath.packages_dir root in
+    let module A = OpamFilename.Attribute in
+    let attributes dir =
+      let all = OpamFilename.rec_files dir in
+      let files = List.filter (fun f ->
+          OpamFilename.ends_with "opam" f
+          || OpamFilename.ends_with "url" f
+          || OpamFilename.ends_with "descr" f
+          (* XXX: deal with archive files *)
+        ) all in
+      List.fold_left (fun attrs f ->
+          let root = OpamFilename.dirname_dir (OpamFilename.dirname f) in
+          let attr = OpamFilename.to_attribute root f in
+          A.Map.add attr f attrs
+        ) A.Map.empty files in
+
+    let attrs_repo = attributes packages_repo in
+    let attrs_opam = attributes packages_opam in
+
+    let set map = A.Map.fold (fun a _ set -> A.Set.add a set) map A.Set.empty in
+    let attrs_repo_s = set attrs_repo in
+    let attrs_opam_s = set attrs_opam in
+
+    let diff1 = A.Set.diff attrs_repo_s attrs_opam_s in
+    let diff2 = A.Set.diff attrs_opam_s attrs_repo_s in
+    let diff = A.Set.union diff1 diff2 in
+
+    if not (A.Set.is_empty diff) then (
+      let errors = A.Set.fold (fun a errors ->
+          let source, attr, file =
+            if A.Map.mem a attrs_repo then
+              ("repository", a, A.Map.find a attrs_repo)
+            else
+              ("opam", a, A.Map.find a attrs_opam) in
+          (source, attr, file) :: errors
+        ) diff [] in
+      OpamGlobals.error "\n%s" (Color.red " -- Sync error --");
+      List.iter (fun (source, attr, file) ->
+          OpamGlobals.error "%s: %s\n%s\n%s"
+            source
+            (A.to_string attr) (OpamFilename.to_string file) (OpamFilename.read file)
+        ) errors;
+      raise (Sync_error errors)
+    )
 
 end

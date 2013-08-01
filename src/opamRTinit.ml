@@ -15,6 +15,7 @@
  *)
 
 open OpamRTcommon
+open OpamTypes
 
 let a1 seed = Packages.({
     pkg    = "a.1";
@@ -40,5 +41,6 @@ let all = [
 ]
 
 let create_single_repo repo =
+  OpamFilename.mkdir repo.repo_root;
   Git.init repo;
   List.map (Packages.add repo) all
