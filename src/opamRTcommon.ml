@@ -132,7 +132,7 @@ module Packages = struct
 
 end
 
-module OPAM = struct
+module OPAM_lib = struct
 
   let init opam_root repo =
     OpamGlobals.root_dir := OpamFilename.Dir.to_string opam_root;
@@ -142,6 +142,26 @@ module OPAM = struct
   let update path =
     OpamGlobals.root_dir := OpamFilename.Dir.to_string path;
     OpamClient.API.update []
+
+end
+
+module OPAM_bin = struct
+
+  let opam opam_root command args =
+    OpamSystem.command
+      ("opam" :: command ::
+         ["--root"; (OpamFilename.Dir.to_string opam_root)]
+         @ args)
+
+  let init opam_root repo =
+    opam opam_root "init" [
+      OpamRepositoryName.to_string repo.repo_name;
+      OpamFilename.Dir.to_string repo.repo_address;
+      "--no-setup"; "--no-base-packages";
+    ]
+
+  let update opam_root =
+    opam opam_root "update" []
 
 end
 

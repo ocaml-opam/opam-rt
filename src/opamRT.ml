@@ -62,7 +62,7 @@ let init_base path =
     repo_kind     = `git;
   } in
   OpamGlobals.display_messages := false;
-  OPAM.init opam_root repo;
+  OPAM_bin.init opam_root repo;
   OpamGlobals.display_messages := true
 
 let init_base path =
@@ -82,7 +82,7 @@ let test_base path =
   List.iter (fun (commit) ->
       OpamGlobals.msg "\n%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo commit;
-      OPAM.update root;
+      OPAM_bin.update root;
       Check.packages repo root;
     ) commits;
   ok ()
