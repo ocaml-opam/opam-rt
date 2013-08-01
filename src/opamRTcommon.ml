@@ -16,7 +16,6 @@
 
 open OpamTypes
 
-
 module Color = struct
 
   let red fmt =
@@ -48,7 +47,7 @@ module Git = struct
       )
 
   let commit repo msg =
-    exec repo [ "git"; "commit"; "-a"; "-m"; msg ]
+    exec repo [ "git"; "commit"; "-a"; "-m"; msg; "--allow-empty" ]
 
   let revision repo =
     return_one_line repo [ "git"; "rev-parse"; "HEAD" ]
