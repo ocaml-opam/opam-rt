@@ -37,7 +37,6 @@ let run f x =
     newline ();
     ok ()
   with e ->
-    OpamGlobals.display_messages := true;
     newline ();
     error e
 
@@ -80,9 +79,7 @@ let init_base kind path =
     repo_address;
     repo_kind;
   } in
-  OpamGlobals.display_messages := false;
-  OPAM_bin.init opam_root repo;
-  OpamGlobals.display_messages := true
+  OPAM_bin.init opam_root repo
 
 let init_base kind path =
   run (init_base kind) path
