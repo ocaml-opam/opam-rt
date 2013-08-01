@@ -92,6 +92,8 @@ let init_base kind path =
    upgrade. *)
 let test_base path =
   log "test-base %s" (OpamFilename.Dir.to_string path);
+  if not (OpamFilename.exists_dir path) then
+    OpamGlobals.error_and_exit "opam-rt has not been initialized properly";
   let repo =
     let root = path / "repo" in
     OpamRepository.local root in

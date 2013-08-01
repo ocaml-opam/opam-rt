@@ -64,6 +64,13 @@ let term_info title ~doc ~man =
   let man = man @ help_sections in
   Term.info ~sdocs:global_option_section ~doc ~man title
 
+let test_case =
+  let doc = Arg.info ~docv:"TEST" ~doc:"Name of the test to run." [] in
+  let case = Arg.enum [
+      ("base", `base)
+    ] in
+  Arg.(required & pos 1 (some case) None & doc)
+
 (* INIT *)
 let init_doc = "Initialize an opam-rt instance."
 let init =
@@ -75,28 +82,30 @@ let init =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some repository_address) None & doc) in
-  let init global_options kind path =
+  let init global_options kind path test =
     apply_global_options global_options;
-    OpamRT.init_base kind path in
-  Term.(pure init $global_options $repo_kind_flag $path),
+    match test with
+    | `base -> OpamRT.init_base kind path in
+  Term.(pure init $global_options $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
-(* TEST *)
-let test_doc = "Run a given test suite."
-let test =
-  let doc = test_doc in
+(* RUN *)
+let run_doc = "Run a given test suite."
+let run =
+  let doc = run_doc in
   let man = [
     `S "DESCRIPTION";
-    `P "The $(b,test) command runs an opam-rt test suite."
+    `P "The $(b,test) command runs the given opam-rt test suite."
   ] in
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some repository_address) None & doc) in
-  let test global_options kind path =
+  let run global_options kind path test =
     apply_global_options global_options;
-    OpamRT.test_base path in
-  Term.(pure test $global_options $repo_kind_flag $path),
-  term_info "test" ~doc ~man
+    match test with
+    | ` base -> OpamRT.test_base path in
+  Term.(pure run $global_options $repo_kind_flag $path $test_case),
+  term_info "run" ~doc ~man
 
 let default =
   let doc = "Regression Testing Framework for OPAM" in
@@ -114,10 +123,10 @@ let default =
        \n\
        The most commonly used opam commands are:\n\
       \    init         %s\n\
-      \    test         %s\n\
+      \    run          %s\n\
        \n\
        See 'opam-rt help <command>' for more information on a specific command.\n"
-      init_doc test_doc in
+      init_doc run_doc in
   Term.(pure usage $global_options),
   Term.info "opam"
     ~version
@@ -127,8 +136,8 @@ let default =
 
 let commands = [
   init;
-  test
+  run;
 ]
 
 let () =
-  run default commands
+  OpamArg.run default commands
