@@ -90,13 +90,24 @@ module Packages = struct
     let maintainer = "test-" ^ string_of_int seed in
     OPAM.with_maintainer opam maintainer
 
-  let url seed =
-    let url = URL.empty in
-    let checksum = "test-" ^ string_of_int seed in
-    URL.with_checksum url checksum
+  let url = function
+    | 0 -> None
+    | i ->
+      let url = URL.empty in
+      let checksum = Printf.sprintf "checksum-%d" i in
+      Some (URL.with_checksum url checksum)
 
-  let descr seed =
-    Descr.of_string ("Test " ^ seed)
+  let descr = function
+    | 0 -> None
+    | i -> Some (Descr.of_string (Printf.sprintf "This is a very nice package (%d)!" i))
+
+  let archive = function
+    | 0 -> None
+    | i -> Some (Printf.sprintf "This is supposed to be a tar archive (%d)" i)
+
+  let prefix name = function
+    | 1 -> None
+    | _ -> Some (Printf.sprintf "prefix-%s" name)
 
   let files repo prefix nv =
     let opam = OpamPath.Repository.opam repo prefix nv in
