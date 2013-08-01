@@ -28,10 +28,17 @@ let error e =
     (Printexc.to_string e)
     (Color.red "[ERROR]")
 
+let newline () =
+  OpamGlobals.msg "\n"
+
 let run f x =
-  try f x; ok ()
+  try
+    f x;
+    newline ();
+    ok ()
   with e ->
     OpamGlobals.display_messages := true;
+    newline ();
     error e
 
 let test_tag = "test"
