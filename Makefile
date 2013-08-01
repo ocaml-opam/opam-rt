@@ -8,10 +8,19 @@ all:
 	$(BUILD) $(TARGET)
 	ln -f _build/$(TARGET) opam-rt
 
-run:
+base-rsync:
 	rm -rf $(TMPDIR)
-	$(OPAMRT) init $(TMPDIR) base
-	$(OPAMRT) run $(TMPDIR)  base
+	$(OPAMRT) init $(TMPDIR) base --kind local
+	$(OPAMRT) run $(TMPDIR)  base --kind local
+
+base-git:
+	rm -rf $(TMPDIR)
+	$(OPAMRT) init $(TMPDIR) base --kind git
+	$(OPAMRT) run $(TMPDIR)  base --kind git
+
+run:
+	$(MAKE) base-rsync
+	$(MAKE) base-git
 
 clean:
 	rm -rf _build opam-rt $(TMPDIR)
