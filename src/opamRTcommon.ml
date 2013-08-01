@@ -59,8 +59,8 @@ module Git = struct
   let init repo =
     exec repo ["git"; "init"]
 
-  let tag repo tag =
-    exec repo ["git"; "tag"; "-f"; tag]
+  let branch repo tag =
+    exec repo ["git"; "checkout"; "-B"; tag]
 
   let add repo file =
     if OpamFilename.exists file then

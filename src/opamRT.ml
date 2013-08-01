@@ -43,7 +43,7 @@ let run f x =
 
 let test_tag = "test"
 
-let init_base path =
+let init_base kind path =
   log "init-base %s\n" (OpamFilename.Dir.to_string path);
   if OpamFilename.exists_dir path then
     OpamGlobals.error_and_exit "%s already exists." (OpamFilename.Dir.to_string path);
@@ -64,22 +64,28 @@ let init_base path =
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
   let repo_name = OpamRepositoryName.of_string "base" in
-  let repo_address =
-    OpamFilename.raw_dir
-      (Printf.sprintf "%s#%s" (OpamFilename.Dir.to_string repo_root) test_tag) in
+  let repo_kind = match kind with
+    | None -> `git
+    | Some k -> k in
+  let repo_address = match repo_kind with
+    | `git   -> OpamFilename.raw_dir
+                  (Printf.sprintf "%s#%s"
+                     (OpamFilename.Dir.to_string repo_root) test_tag)
+    | `local -> repo_root
+    | _      -> failwith "TODO" in
   let repo = {
     repo_name;
     repo_root     = OpamPath.Repository.create opam_root repo_name;
     repo_priority = 0;
     repo_address;
-    repo_kind     = `git;
+    repo_kind;
   } in
   OpamGlobals.display_messages := false;
   OPAM_bin.init opam_root repo;
   OpamGlobals.display_messages := true
 
-let init_base path =
-  run init_base path
+let init_base kind path =
+  run (init_base kind) path
 
 (* First basic test: we verify that the global contents is the same as
    the repository contents after each new commit in the repository +
@@ -95,7 +101,7 @@ let test_base path =
   List.iter (fun (commit) ->
       OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo commit;
-      Git.tag repo test_tag;
+      Git.branch repo test_tag;
       OPAM_bin.update root;
       Check.packages repo root;
     ) (commits @ (List.rev commits))

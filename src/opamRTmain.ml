@@ -77,7 +77,7 @@ let init =
     Arg.(required & pos 0 (some repository_address) None & doc) in
   let init global_options kind path =
     apply_global_options global_options;
-    OpamRT.init_base path in
+    OpamRT.init_base kind path in
   Term.(pure init $global_options $repo_kind_flag $path),
   term_info "init" ~doc ~man
 
