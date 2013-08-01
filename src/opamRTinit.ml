@@ -17,30 +17,38 @@
 open OpamRTcommon
 open OpamTypes
 
-let a1 seed = Packages.({
-    pkg     = "a.1";
-    prefix  = None;
-    opam    = opam "a.1" seed;
-    url     = None;
-    descr   = None;
-    archive = None;
+let () =
+  Random.init 1664
+
+let package name version seed =
+  let pkg = Printf.sprintf "%s.%d" name version in
+  Packages.({
+    pkg     = pkg;
+    prefix  = prefix name version;
+    opam    = opam pkg seed;
+    url     = url seed;
+    descr   = descr seed;
+    archive = archive seed;
   })
 
-let a2 seed = Packages.({
-    pkg     = "a.2";
-    prefix  = None;
-    opam    = opam "a.2" seed;
-    url     = None;
-    descr   = None;
-    archive = None;
-  })
+let a1 = package "a" 1
+let a2 = package "a" 2
+
+let not_very_random n =
+  let i = Random.int n in
+  if i > n/2 then 0 else i
+
+let ar _ =
+  package "a" (Random.int 10) (not_very_random 10)
 
 let all = [
   a1 0;
   a1 1;
-  a2 0;
+  a1 2;
+  a2 2;
   a2 1;
-]
+  a2 0;
+] @ Array.to_list (Array.init 10 ar)
 
 let create_single_repo repo tag =
   OpamFilename.mkdir repo.repo_root;
