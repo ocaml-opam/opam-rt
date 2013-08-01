@@ -65,7 +65,8 @@ module Git = struct
       exec repo ["git"; "add"; file]
 
   let checkout repo hash =
-    exec repo ["git"; "checkout"; hash]
+    exec repo ["git"; "checkout"; hash];
+    exec repo ["git"; "clean"; "-fdx"]
 
 end
 

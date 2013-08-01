@@ -78,14 +78,13 @@ let test_base path =
     OpamRepository.local root in
   let root = path / "opam" in
   let commits = Git.commits repo in
-  OpamGlobals.msg "Commits:\n  %s\n" (String.concat "\n  " commits);
+  OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits);
   List.iter (fun (commit) ->
-      OpamGlobals.msg "\n%s\n" (Color.yellow "*** %s ***" commit);
+      OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo commit;
       OPAM_bin.update root;
       Check.packages repo root;
-    ) commits;
-  ok ()
+    ) (commits @ (List.rev commits))
 
 let test_base path =
   run test_base path
