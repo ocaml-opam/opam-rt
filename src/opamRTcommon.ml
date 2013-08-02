@@ -103,7 +103,7 @@ module Packages = struct
 
   let archive = function
     | 0 -> None
-    | i -> Some (Printf.sprintf "This is supposed to be a tar archive (%d)" i)
+    | i -> Some (Printf.sprintf "I'm a tar archive! %d-%d-%d-%d" i i i i)
 
   let prefix name = function
     | 1 -> None
