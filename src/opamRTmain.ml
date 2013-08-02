@@ -33,7 +33,6 @@ let help_sections = [
   `P "Thomas Gazagnaire   <thomas.gazagnaire@ocamlpro.com>"; `Noblank;
 ]
 
-
 (* HELP *)
 let help =
   let doc = "Display help about opam-rt and opam-rt commands." in
@@ -59,7 +58,6 @@ let help =
   Term.(ret (pure help $Term.man_format $Term.choice_names $topic)),
   Term.info "help" ~doc ~man
 
-
 let term_info title ~doc ~man =
   let man = man @ help_sections in
   Term.info ~sdocs:global_option_section ~doc ~man title
@@ -70,6 +68,13 @@ let test_case =
       ("base", `base)
     ] in
   Arg.(required & pos 1 (some case) None & doc)
+
+let seed_flag =
+  let doc = Arg.info ~docv:"SEED" ~doc:"Value of the random seed." ["S";"seed"] in
+  Arg.(value & opt int 1664 & doc)
+
+let set_seed seed =
+  OpamRTcommon.set_seed seed
 
 (* INIT *)
 let init_doc = "Initialize an opam-rt instance."
@@ -82,11 +87,12 @@ let init =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some repository_address) None & doc) in
-  let init global_options kind path test =
+  let init global_options seed kind path test =
     apply_global_options global_options;
+    set_seed seed;
     match test with
     | `base -> OpamRT.init_base kind path in
-  Term.(pure init $global_options $repo_kind_flag $path $test_case),
+  Term.(pure init $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
 (* RUN *)
@@ -100,11 +106,12 @@ let run =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some repository_address) None & doc) in
-  let run global_options kind path test =
+  let run global_options seed kind path test =
     apply_global_options global_options;
+    set_seed seed;
     match test with
     | ` base -> OpamRT.test_base path in
-  Term.(pure run $global_options $repo_kind_flag $path $test_case),
+  Term.(pure run $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 
 let default =

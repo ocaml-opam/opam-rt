@@ -16,6 +16,15 @@
 
 open OpamTypes
 
+let seed_ref =
+  ref 1664
+
+let set_seed seed =
+  seed_ref := seed
+
+let seed () =
+  !seed_ref
+
 module Color = struct
 
   let red fmt =

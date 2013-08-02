@@ -32,7 +32,10 @@ let newline () =
   OpamGlobals.msg "\n"
 
 let run f x =
+  let seed = OpamRTcommon.seed () in
+  Random.init seed;
   try
+    OpamGlobals.msg "SEED %d\n" seed;
     f x;
     newline ();
     ok ()
@@ -111,7 +114,7 @@ let test_base path =
     OpamRepository.local root in
   let root = path / "opam" in
   let commits = Git.commits repo in
-  OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits);
+  (* OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
   List.iter (fun (commit) ->
       OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo commit;

@@ -17,9 +17,6 @@
 open OpamRTcommon
 open OpamTypes
 
-let () =
-  Random.init 1664
-
 let package name version seed =
   let pkg = Printf.sprintf "%s.%d" name version in
   Packages.({
