@@ -244,9 +244,7 @@ module Check = struct
           if A.Map.exists same_base m2 then
             if A.Map.mem a1 m2 then errors
             else
-              let a2, f2 = find_binding same_base m2 in
               { source = s1; attr = a1; file = f1 }
-              :: { source = s2; attr = a2; file = f2 }
               :: errors
           else
             errors
