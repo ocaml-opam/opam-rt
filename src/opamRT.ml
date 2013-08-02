@@ -84,6 +84,21 @@ let init_base kind path =
 let init_base kind path =
   run (init_base kind) path
 
+let shuffle l =
+  let a = Array.init (List.length l) (fun _ -> None) in
+  let rec aux n = function
+    | []   -> ()
+    | h::t ->
+      let i = ref (Random.int n) in
+      while a.(!i mod Array.length a) <> None do incr i done;
+      a.(!i) <- Some h;
+      aux (n-1) t in
+  aux (List.length l) l;
+  Array.fold_left (fun acc -> function
+      | None   -> assert false
+      | Some i -> i :: acc
+    )  [] a
+
 (* First basic test: we verify that the global contents is the same as
    the repository contents after each new commit in the repository +
    upgrade. *)
@@ -103,7 +118,7 @@ let test_base path =
       Git.branch repo test_tag;
       OPAM_bin.update root;
       Check.packages repo root;
-    ) (commits @ (List.rev commits))
+    ) (shuffle commits)
 
 let test_base path =
   run test_base path
