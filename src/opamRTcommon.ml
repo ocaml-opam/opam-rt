@@ -213,7 +213,7 @@ module Check = struct
   let sync_errors errors =
     OpamGlobals.error "\n%s" (Color.red " -- Sync error --");
     List.iter (fun { source; attr; file } ->
-        OpamGlobals.error "%s: %s\n%s\n%s"
+        OpamGlobals.error "%s: %s\n%s\n%s\n"
           source
           (A.to_string attr) (OpamFilename.to_string file) (OpamFilename.read file)
       ) errors;
