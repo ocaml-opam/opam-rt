@@ -86,7 +86,7 @@ let init =
   ] in
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
-    Arg.(required & pos 0 (some repository_address) None & doc) in
+    Arg.(required & pos 0 (some dirname) None & doc) in
   let init global_options seed kind path test =
     apply_global_options global_options;
     set_seed seed;
@@ -105,7 +105,7 @@ let run =
   ] in
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
-    Arg.(required & pos 0 (some repository_address) None & doc) in
+    Arg.(required & pos 0 (some dirname) None & doc) in
   let run global_options seed kind path test =
     apply_global_options global_options;
     set_seed seed;

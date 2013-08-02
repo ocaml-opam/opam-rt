@@ -197,7 +197,7 @@ module OPAM_bin = struct
     OpamGlobals.sync_archives := true;
     opam opam_root "init" [
       OpamRepositoryName.to_string repo.repo_name;
-      OpamFilename.Dir.to_string repo.repo_address;
+      string_of_address repo.repo_address;
       "--no-setup"; "--no-base-packages";
       "--kind"; kind
     ]
