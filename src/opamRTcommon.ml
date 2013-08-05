@@ -295,6 +295,9 @@ module OPAM = struct
   let update opam_root =
     opam opam_root "update" ["--sync-archives"]
 
+  let upgrade opam_root package =
+    opam opam_root "upgrade" [OpamPackage.to_string package]
+
 end
 
 module Check = struct
@@ -327,77 +330,72 @@ module Check = struct
     try A.Map.iter (fun a f -> if fn a f then raise (Found (a,f))) map; raise Not_found
     with Found (a,f) -> (a,f)
 
-  let archives repo root =
-    let archives_repo = OpamPath.Repository.archives_dir repo in
-    let archives_opam = OpamPath.archives_dir root in
-    let attributes dir =
-      let files = OpamFilename.files dir in
-      List.fold_left (fun attrs file ->
-          A.Map.add (OpamFilename.to_attribute dir file) file attrs
-        ) A.Map.empty files in
-    let attrs_repo = attributes archives_repo in
-    let attrs_opam = attributes archives_opam in
-    let check (s1, m1) (s2, m2) =
-      A.Map.fold (fun a1 f1 errors ->
-          let same_base a2 _ = (A.base a1 = A.base a2) in
-          if A.Map.exists same_base m2 then
-            if A.Map.mem a1 m2 then errors
-            else
-              { source = s1; attr = a1; file = f1 }
-              :: errors
-          else
-            errors
-        ) m1 [] in
+  let attributes ?filter dir =
+    let filter = match filter with
+      | None   -> fun _ -> Some dir
+      | Some f -> f in
+    let files = OpamFilename.rec_files dir in
+    List.fold_left (fun attrs file ->
+        match filter file with
+        | None     -> attrs
+        | Some dir ->
+          let attr = OpamFilename.to_attribute dir file in
+          A.Map.add attr file attrs
+      ) A.Map.empty files
 
-    let errors =
-      let opam = ("opam", attrs_opam) in
-      let repo = ("repository", attrs_repo) in
-      check opam repo @ check repo opam in
-
-    if errors <> [] then
-      sync_errors errors
-
-  let packages repo root =
-    let packages_repo = OpamPath.Repository.packages_dir repo in
-    let packages_opam = OpamPath.packages_dir root in
-    let attributes dir =
-      let all = OpamFilename.rec_files dir in
-      let files = List.filter (fun f ->
-          OpamFilename.ends_with "opam" f
-          || OpamFilename.ends_with "url" f
-          || OpamFilename.ends_with "descr" f
-          (* XXX: deal with archive files *)
-        ) all in
-      List.fold_left (fun attrs f ->
-          let root = OpamFilename.dirname_dir (OpamFilename.dirname f) in
-          let attr = OpamFilename.to_attribute root f in
-          A.Map.add attr f attrs
-        ) A.Map.empty files in
-
-    let attrs_repo = attributes packages_repo in
-    let attrs_opam = attributes packages_opam in
-
-    let attrs_repo_s = set attrs_repo in
-    let attrs_opam_s = set attrs_opam in
-
-    let diff1 = A.Set.diff attrs_repo_s attrs_opam_s in
-    let diff2 = A.Set.diff attrs_opam_s attrs_repo_s in
+  let sym_diff (name1, a1) (name2, a2) =
+    let s1 = set a1 in
+    let s2 = set a2 in
+    let diff1 = A.Set.diff s1 s2 in
+    let diff2 = A.Set.diff s2 s1 in
     let diff = A.Set.union diff1 diff2 in
-
-    let errors = A.Set.fold (fun a errors ->
+    A.Set.fold (fun a errors ->
         let source, attr, file =
-          if A.Map.mem a attrs_repo then
-            ("repository", a, A.Map.find a attrs_repo)
+          if A.Map.mem a a1 then
+            (name1, a, A.Map.find a a1)
           else
-            ("opam", a, A.Map.find a attrs_opam) in
+            (name2, a, A.Map.find a a2) in
         { source; attr; file } :: errors
-      ) diff [] in
+      ) diff []
 
-    if errors <> [] then
-      sync_errors errors
+  let check_attributes a1 a2 =
+    match sym_diff a1 a2 with
+    | [] -> ()
+    | l  -> sync_errors l
+
+  let check_dirs ?filter (n1, d1) (n2, d2) =
+    let a1 = attributes ?filter d1 in
+    let a2 = attributes ?filter d2 in
+    check_attributes (n1, a1) (n2, a2)
 
   let packages repo root =
-    packages repo root;
-    archives repo root
+    (* metadata *)
+    let r = OpamPath.Repository.packages_dir repo in
+    let o = OpamPath.packages_dir root in
+    let filter file =
+      Some (OpamFilename.dirname_dir (OpamFilename.dirname file)) in
+    check_dirs ~filter ("repo", r) ("opam", o);
+    (* archives *)
+    let r = OpamPath.Repository.archives_dir repo in
+    let o = OpamPath.archives_dir root in
+    check_dirs ("repo", r) ("opam", o)
+
+  let contents contents_root opam_root nv =
+
+    let opam =
+      let libs =
+        OpamPath.Switch.lib opam_root OpamSwitch.default (OpamPackage.name nv) in
+      let bins = OpamPath.Switch.bin opam_root OpamSwitch.default in
+      A.Map.union
+        (fun x y -> failwith "union") (attributes libs) (attributes bins) in
+
+    let contents =
+      let package_root = contents_root / OpamPackage.to_string nv in
+      let filter file =
+        if OpamFilename.starts_with (package_root / ".git") file then None
+        else Some package_root in
+      attributes ~filter package_root in
+
+    check_attributes ("opam", opam) ("contents", contents)
 
 end

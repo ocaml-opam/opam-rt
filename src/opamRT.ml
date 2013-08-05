@@ -133,8 +133,9 @@ let repo_and_opam_root path =
   let repo =
     let root = path / "repo" in
     OpamRepository.local root in
-  let root = path / "opam" in
-  repo, root
+  let opam_root = path / "opam" in
+  let contents_root = path / "contents" in
+  repo, opam_root, contents_root
 
 
 (* Basic reposiotry update test: we verify that the global contents is
@@ -142,7 +143,7 @@ let repo_and_opam_root path =
    repository + upgrade. *)
 let test_repo_update path =
   log "test-repo-update %s" (OpamFilename.Dir.to_string path);
-  let repo, root = repo_and_opam_root path in
+  let repo, root, _ = repo_and_opam_root path in
   let commits = Git.commits repo.repo_root in
   (* OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
   List.iter (fun commit ->
@@ -160,7 +161,7 @@ let test_repo_update path =
    update their contents *)
 let test_dev_update path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
-  let repo, root = repo_and_opam_root path in
+  let repo, opam_root, contents_root = repo_and_opam_root path in
   let packages = OpamRepository.packages repo in
   let commits = OpamPackage.Set.fold (fun nv acc ->
       let dir = path / "contents" / OpamPackage.to_string nv in
@@ -171,7 +172,7 @@ let test_dev_update path =
     ) packages [] in
 
   (* install the packages *)
-  List.iter (fun (nv, _) -> OPAM.install root nv) commits;
+  List.iter (fun (nv, _) -> OPAM.install opam_root nv) commits;
 
   (* update and check *)
   List.iter (fun (nv, (dir, commits)) ->
@@ -180,8 +181,9 @@ let test_dev_update path =
             (Color.yellow "%s %s" (OpamPackage.to_string nv) commit);
           Git.checkout dir commit;
           Git.branch dir;
-          OPAM.update root;
-          Check.packages repo root;
+          OPAM.update opam_root;
+          OPAM.upgrade opam_root nv;
+          Check.contents contents_root opam_root nv;
         ) commits
     ) commits
 
