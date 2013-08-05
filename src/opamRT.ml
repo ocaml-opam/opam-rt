@@ -81,7 +81,7 @@ let init_repo_update kind path =
       contents_root in
   List.iter (fun (pkg, commits) ->
       List.iter (fun (commit, file) ->
-          OpamGlobals.msg "%s adds %s (%s)\n"
+          OpamGlobals.msg "%s adds %s (%s)\n%!"
             commit
             (OpamFilename.to_string file)
             (OpamPackage.to_string pkg)
@@ -102,7 +102,8 @@ let init_dev_update contents_kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
-  OPAM.init opam_root repo
+  OPAM.init opam_root repo;
+  OPAM.update opam_root
 
 let init_dev_update kind path =
   run (init_dev_update kind) path
@@ -160,10 +161,9 @@ let test_repo_update path =
 let test_dev_update path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
   let repo, root = repo_and_opam_root path in
-
   let packages = OpamRepository.packages repo in
   let commits = OpamPackage.Set.fold (fun nv acc ->
-      let dir = root / "contents" / OpamPackage.to_string nv in
+      let dir = path / "contents" / OpamPackage.to_string nv in
       if not (OpamFilename.exists_dir dir) then
         OpamGlobals.error_and_exit "Missing contents folder: %s"
           (OpamFilename.Dir.to_string dir);

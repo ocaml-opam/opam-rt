@@ -76,7 +76,7 @@ let create_simple_repo repo contents_root contents_kind =
   let package0 = package "a" 1 contents_kind contents_root 10 in
   let all =
     package0
-    :: random_list 10 (fun _ ->
+    :: random_list 20 (fun _ ->
         package "a" 1 contents_kind contents_root (Random.int 20)
       ) in
   List.iter (fun package ->
