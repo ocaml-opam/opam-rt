@@ -23,7 +23,7 @@ let package name version kind root seed =
   let nv = OpamPackage.of_string pkg in
   let contents = Contents.create nv in
   Packages.({
-    pkg      = pkg;
+    nv;
     prefix   = prefix nv;
     opam     = opam nv seed;
     url      = url kind (root / pkg) seed;
@@ -60,8 +60,8 @@ let all root = [
 
 let create_single_repo repo tag =
   OpamFilename.mkdir repo.repo_root;
-  Git.init repo;
+  Git.init repo.repo_root;
   let all = all repo.repo_root in
   let commits = List.map (Packages.add repo) all in
-  Git.branch repo tag;
+  Git.branch repo.repo_root tag;
   commits

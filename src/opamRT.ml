@@ -57,7 +57,10 @@ let init_base kind path =
     OpamRTinit.create_single_repo (OpamRepository.local repo_root) Git.test_tag in
   List.iter (fun (pkg, commits) ->
       List.iter (fun (commit, file) ->
-          OpamGlobals.msg "%s adds %s (%s)\n" commit (OpamFilename.to_string file) pkg
+          OpamGlobals.msg "%s adds %s (%s)\n"
+            commit
+            (OpamFilename.to_string file)
+            (OpamPackage.to_string pkg)
         ) commits
     ) commits;
 
@@ -99,26 +102,36 @@ let shuffle l =
       | Some i -> i :: acc
     )  [] a
 
-(* First basic test: we verify that the global contents is the same as
-   the repository contents after each new commit in the repository +
-   upgrade. *)
-let test_base path =
-  log "test-base %s" (OpamFilename.Dir.to_string path);
+let repo_and_opam_root path =
   if not (OpamFilename.exists_dir path) then
     OpamGlobals.error_and_exit "opam-rt has not been initialized properly";
   let repo =
     let root = path / "repo" in
     OpamRepository.local root in
   let root = path / "opam" in
-  let commits = Git.commits repo in
+  repo, root
+
+(* Basic update test: we verify that the global contents is the same as
+   the repository contents after each new commit in the repository +
+   upgrade. *)
+let test_base path =
+  log "test-base-update %s" (OpamFilename.Dir.to_string path);
+  let repo, root = repo_and_opam_root path in
+  let commits = Git.commits repo.repo_root in
   (* OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
   List.iter (fun (commit) ->
       OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
-      Git.checkout repo commit;
-      Git.branch repo Git.test_tag;
+      Git.checkout repo.repo_root commit;
+      Git.branch repo.repo_root Git.test_tag;
       OPAM_bin.update root;
       Check.packages repo root;
     ) (shuffle commits)
 
 let test_base path =
   run test_base path
+
+(* Basic install test: we install the two packages and update their contents *)
+let test_instal path =
+  log "test-base-update %s" (OpamFilename.Dir.to_string path);
+  let repo, root = repo_and_opam_root path in
+  ()

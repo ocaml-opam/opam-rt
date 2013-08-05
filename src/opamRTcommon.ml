@@ -42,17 +42,17 @@ end
 module Git = struct
 
   let exec repo command =
-    OpamFilename.in_dir repo.repo_root (fun () ->
+    OpamFilename.in_dir repo (fun () ->
         OpamSystem.command command
       )
 
   let return_one_line repo command =
-    OpamFilename.in_dir repo.repo_root (fun () ->
+    OpamFilename.in_dir repo (fun () ->
         List.hd (OpamSystem.read_command_output command)
       )
 
   let return repo command =
-    OpamFilename.in_dir repo.repo_root (fun () ->
+    OpamFilename.in_dir repo (fun () ->
         (OpamSystem.read_command_output command)
       )
 
@@ -73,7 +73,7 @@ module Git = struct
 
   let add repo file =
     if OpamFilename.exists file then
-      let file = OpamFilename.remove_prefix repo.repo_root file in
+      let file = OpamFilename.remove_prefix repo file in
       exec repo ["git"; "add"; file]
 
   let checkout repo hash =
@@ -95,7 +95,7 @@ module Contents = struct
   let random_string n =
     let s = String.create n in
     String.iteri (fun i _ ->
-        let c = Random.int 256 in
+        let c = int_of_char 'A' + Random.int 58 in
         s.[i] <- char_of_int c
       ) s;
     s
@@ -131,10 +131,15 @@ module Contents = struct
   let write repo nv t =
     log "write %s" (OpamPackage.to_string nv);
     let root = root repo nv in
+    if not (OpamFilename.exists_dir root) then (
+      OpamFilename.mkdir root;
+      Git.init root;
+    );
     List.iter (fun (base, contents) ->
         let file = OpamFilename.create root base in
         OpamFilename.write file contents
-      ) t
+      ) t;
+    Git.commit root "Add new content"
 
 end
 
@@ -145,7 +150,7 @@ module Packages = struct
   open OpamFile
 
   type t = {
-    pkg     : string;
+    nv      : package;
     prefix  : string option;
     opam    : OPAM.t;
     url     : URL.t option;
@@ -206,7 +211,7 @@ module Packages = struct
     opam, descr, url, archive
 
   let files_of_t repo t =
-    files repo t.prefix (OpamPackage.of_string t.pkg)
+    files repo t.prefix t.nv
 
   let write_o f = function
     | None   -> ()
@@ -217,7 +222,8 @@ module Packages = struct
     OPAM.write opam t.opam;
     write_o (Descr.write descr) t.descr;
     write_o (URL.write url) t.url;
-    write_o (OpamFilename.write archive) t.archive
+    write_o (OpamFilename.write archive) t.archive;
+    Contents.write repo t.nv t.contents
 
   let read_o f file =
     if OpamFilename.exists file then Some (f file)
@@ -230,23 +236,24 @@ module Packages = struct
     let url = read_o URL.read url in
     let contents = Contents.read repo nv in
     let archive = read_o OpamFilename.read archive in
-    let pkg = OpamPackage.to_string nv in
-    { pkg; prefix; opam; descr; url; contents; archive }
+    { nv; prefix; opam; descr; url; contents; archive }
 
   let add repo t =
     write repo t;
     let opam, descr, url, archive = files_of_t repo t in
     let commit file =
       if OpamFilename.exists file then (
-        Git.add repo file;
+        Git.add repo.repo_root file;
         let msg =
-          Printf.sprintf "Add package %s (%s)" t.pkg (OpamFilename.to_string file) in
-        Git.commit repo msg;
-        Some (Git.revision repo, file);
+          Printf.sprintf "Add package %s (%s)"
+            (OpamPackage.to_string t.nv)
+            (OpamFilename.to_string file) in
+        Git.commit repo.repo_root msg;
+        Some (Git.revision repo.repo_root, file);
       ) else
         None in
     let commits = OpamMisc.filter_map commit [opam; descr; url; archive] in
-    (t.pkg, commits)
+    (t.nv, commits)
 
 end
 
@@ -282,6 +289,9 @@ module OPAM_bin = struct
       "--no-setup"; "--no-base-packages";
       "--kind"; kind
     ]
+
+  let install opam_root package =
+    opam opam_root "install" [OpamPackage.to_string package]
 
   let update opam_root =
     opam opam_root "update" ["--sync-archives"]
