@@ -43,32 +43,18 @@ let run f x =
     newline ();
     error e
 
-let init_base kind path =
-  log "init-base %s\n" (OpamFilename.Dir.to_string path);
+
+
+(* INIT *)
+
+let init_paths kind path =
   if OpamFilename.exists_dir path then
     OpamGlobals.error_and_exit "%s already exists." (OpamFilename.Dir.to_string path);
   OpamFilename.mkdir path;
-
-  let repo_root = path / "repo" in
-  OpamGlobals.msg
-    "Creating a new repository in %s/ ...\n"
-    (OpamFilename.Dir.to_string repo_root);
-  let commits =
-    OpamRTinit.create_single_repo (OpamRepository.local repo_root) Git.test_tag in
-  List.iter (fun (pkg, commits) ->
-      List.iter (fun (commit, file) ->
-          OpamGlobals.msg "%s adds %s (%s)\n"
-            commit
-            (OpamFilename.to_string file)
-            (OpamPackage.to_string pkg)
-        ) commits
-    ) commits;
-
-  let opam_root = path / "opam" in
-  OpamGlobals.msg
-    "Initializing an OPAM instance in %s/ ...\n"
-    (OpamFilename.Dir.to_string opam_root);
   let repo_name = OpamRepositoryName.of_string "base" in
+  let repo_root = path / "repo" in
+  let opam_root = path / "opam" in
+  let contents_root = path / "contents" in
   let repo_address = match kind with
     | Some `git   -> OpamFilename.Dir.to_string repo_root, Some Git.test_tag
     | Some `local
@@ -77,15 +63,49 @@ let init_base kind path =
   let repo_kind = guess_repository_kind kind repo_address in
   let repo = {
     repo_name;
-    repo_root     = OpamPath.Repository.create opam_root repo_name;
+    repo_root;
     repo_priority = 0;
     repo_address;
     repo_kind;
   } in
-  OPAM_bin.init opam_root repo
+  repo, opam_root, contents_root
 
-let init_base kind path =
-  run (init_base kind) path
+let init_repo_update kind path =
+  log "init-repo-update %s\n" (OpamFilename.Dir.to_string path);
+  let repo, opam_root, contents_root = init_paths kind path in
+  OpamGlobals.msg
+    "Creating a new repository in %s/ ...\n"
+    (OpamFilename.Dir.to_string repo.repo_root);
+  let commits = OpamRTinit.create_repo_with_history
+      (OpamRepository.local repo.repo_root)
+      contents_root in
+  List.iter (fun (pkg, commits) ->
+      List.iter (fun (commit, file) ->
+          OpamGlobals.msg "%s adds %s (%s)\n"
+            commit
+            (OpamFilename.to_string file)
+            (OpamPackage.to_string pkg)
+        ) commits
+    ) commits;
+  OpamGlobals.msg
+    "Initializing an OPAM instance in %s/ ...\n"
+    (OpamFilename.Dir.to_string opam_root);
+  OPAM.init opam_root repo
+
+let init_repo_update kind path =
+  run (init_repo_update kind) path
+
+let init_dev_update contents_kind path =
+  log "init-dev-update %s" (OpamFilename.Dir.to_string path);
+  let repo, opam_root, contents_root = init_paths (Some `local)  path in
+  OpamGlobals.msg
+    "Creating a new repository in %s/ ...\n"
+    (OpamFilename.Dir.to_string repo.repo_root);
+  OpamRTinit.create_simple_repo repo contents_root contents_kind;
+  OPAM.init opam_root repo
+
+let init_dev_update kind path =
+  run (init_dev_update kind) path
 
 let shuffle l =
   let a = Array.init (List.length l) (fun _ -> None) in
@@ -102,6 +122,10 @@ let shuffle l =
       | Some i -> i :: acc
     )  [] a
 
+
+
+(* TEST RUNS *)
+
 let repo_and_opam_root path =
   if not (OpamFilename.exists_dir path) then
     OpamGlobals.error_and_exit "opam-rt has not been initialized properly";
@@ -111,27 +135,55 @@ let repo_and_opam_root path =
   let root = path / "opam" in
   repo, root
 
-(* Basic update test: we verify that the global contents is the same as
-   the repository contents after each new commit in the repository +
-   upgrade. *)
-let test_base path =
-  log "test-base-update %s" (OpamFilename.Dir.to_string path);
+
+(* Basic reposiotry update test: we verify that the global contents is
+   the same as the repository contents after each new commit in the
+   repository + upgrade. *)
+let test_repo_update path =
+  log "test-repo-update %s" (OpamFilename.Dir.to_string path);
   let repo, root = repo_and_opam_root path in
   let commits = Git.commits repo.repo_root in
   (* OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
-  List.iter (fun (commit) ->
+  List.iter (fun commit ->
       OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo.repo_root commit;
-      Git.branch repo.repo_root Git.test_tag;
-      OPAM_bin.update root;
+      Git.branch repo.repo_root;
+      OPAM.update root;
       Check.packages repo root;
     ) (shuffle commits)
 
-let test_base path =
-  run test_base path
+let test_repo_update path =
+  run test_repo_update path
 
-(* Basic install test: we install the two packages and update their contents *)
-let test_instal path =
+(* Basic dev package update test: we install the two packages and
+   update their contents *)
+let test_dev_update path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
   let repo, root = repo_and_opam_root path in
-  ()
+
+  let packages = OpamRepository.packages repo in
+  let commits = OpamPackage.Set.fold (fun nv acc ->
+      let dir = root / "contents" / OpamPackage.to_string nv in
+      if not (OpamFilename.exists_dir dir) then
+        OpamGlobals.error_and_exit "Missing contents folder: %s"
+          (OpamFilename.Dir.to_string dir);
+      (nv, (dir, shuffle (Git.commits dir))) :: acc
+    ) packages [] in
+
+  (* install the packages *)
+  List.iter (fun (nv, _) -> OPAM.install root nv) commits;
+
+  (* update and check *)
+  List.iter (fun (nv, (dir, commits)) ->
+      List.iter (fun commit ->
+          OpamGlobals.msg "%s\n"
+            (Color.yellow "%s %s" (OpamPackage.to_string nv) commit);
+          Git.checkout dir commit;
+          Git.branch dir;
+          OPAM.update root;
+          Check.packages repo root;
+        ) commits
+    ) commits
+
+let test_dev_update path =
+  run test_dev_update path

@@ -18,7 +18,7 @@ open OpamRTcommon
 open OpamTypes
 open OpamFilename.OP
 
-let package name version kind root seed =
+let package name version contents_kind contents_root seed =
   let pkg = Printf.sprintf "%s.%d" name version in
   let nv = OpamPackage.of_string pkg in
   let contents = Contents.create nv in
@@ -26,17 +26,17 @@ let package name version kind root seed =
     nv;
     prefix   = prefix nv;
     opam     = opam nv seed;
-    url      = url kind (root / pkg) seed;
+    url      = url contents_kind (contents_root / pkg) seed;
     descr    = descr seed;
     contents;
     archive  = archive contents nv seed;
   })
 
-let a1 root =
-  package "a" 1 (Some `local) root
+let a1 contents_root =
+  package "a" 1 (Some `local) contents_root
 
-let a2 root =
-  package "a" 2 (Some `git) root
+let a2 contents_root =
+  package "a" 2 (Some `git) contents_root
 
 let not_very_random n =
   let i = Random.int n in
@@ -49,19 +49,38 @@ let ar root _ =
   else
     a2 root seed
 
-let all root = [
-  a1 root 0;
-  a1 root 1;
-  a1 root 2;
-  a2 root 2;
-  a2 root 1;
-  a2 root 0;
-] @ Array.to_list (Array.init 10 (ar root))
+let random_list n fn =
+  Array.to_list (Array.init 10 fn)
 
-let create_single_repo repo tag =
+(* Create a repository with 2 packages and a complex history *)
+let create_repo_with_history repo contents_root =
   OpamFilename.mkdir repo.repo_root;
   Git.init repo.repo_root;
-  let all = all repo.repo_root in
+  let all = [
+    a1 contents_root 0;
+    a1 contents_root 1;
+    a1 contents_root 2;
+    a2 contents_root 2;
+    a2 contents_root 1;
+    a2 contents_root 0;
+  ] @ random_list 10 (ar repo.repo_root) in
   let commits = List.map (Packages.add repo) all in
-  Git.branch repo.repo_root tag;
+  Git.branch repo.repo_root;
   commits
+
+(* Create a repository with a single package without archive file and
+   no history. *)
+let create_simple_repo repo contents_root contents_kind =
+  OpamFilename.mkdir repo.repo_root;
+  Git.init repo.repo_root;
+  let package0 = package "a" 1 contents_kind contents_root 10 in
+  let all =
+    package0
+    :: random_list 10 (fun _ ->
+        package "a" 1 contents_kind contents_root (Random.int 20)
+      ) in
+  List.iter (fun package ->
+      Packages.write repo package
+    ) all;
+  let _ = Packages.add repo package0 in
+  Git.commit repo.repo_root "Add package"

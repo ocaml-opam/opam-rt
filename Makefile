@@ -8,19 +8,31 @@ all:
 	$(BUILD) $(TARGET)
 	ln -f _build/$(TARGET) opam-rt
 
-base-local:
+repo-local:
 	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) base --kind local
-	$(OPAMRT) run $(TESTDIR)  base --kind local
+	$(OPAMRT) init $(TESTDIR) repo-update --kind local
+	$(OPAMRT) run $(TESTDIR)  repo-update --kind local
 
-base-git:
+repo-git:
 	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) base --kind git
-	$(OPAMRT) run $(TESTDIR)  base --kind git
+	$(OPAMRT) init $(TESTDIR) repo-update --kind git
+	$(OPAMRT) run $(TESTDIR)  repo-update --kind git
+
+dev-local:
+	rm -rf $(TESTDIR)
+	$(OPAMRT) init $(TESTDIR) dev-update --kind local
+	$(OPAMRT) run $(TESTDIR)  dev-update --kind local
+
+dev-git:
+	rm -rf $(TESTDIR)
+	$(OPAMRT) init $(TESTDIR) dev-update --kind git
+	$(OPAMRT) run $(TESTDIR)  dev-update --kind git
 
 run:
-	$(MAKE) base-local
-	$(MAKE) base-git
+	$(MAKE) repo-local
+	$(MAKE) repo-git
+	$(MAKE) dev-local
+	$(MAKE) dev-git
 
 clean:
 	rm -rf _build opam-rt $(TESTDIR)

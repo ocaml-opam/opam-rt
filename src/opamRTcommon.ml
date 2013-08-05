@@ -56,8 +56,16 @@ module Git = struct
         (OpamSystem.read_command_output command)
       )
 
-  let commit repo msg =
-    exec repo [ "git"; "commit"; "-a"; "-m"; msg; "--allow-empty" ]
+  let commit repo fmt =
+    Printf.kprintf (fun msg ->
+        exec repo [ "git"; "commit"; "-a"; "-m"; msg; "--allow-empty" ]
+      ) fmt
+
+  let commit_file repo file fmt =
+    Printf.kprintf (fun msg ->
+        let file = OpamFilename.remove_prefix repo file in
+        exec repo [ "git"; "commit"; "-m"; msg; "--allow-empty"; file ]
+      ) fmt
 
   let revision repo =
     return_one_line repo [ "git"; "rev-parse"; "HEAD" ]
@@ -68,8 +76,10 @@ module Git = struct
   let init repo =
     exec repo ["git"; "init"]
 
-  let branch repo tag =
-    exec repo ["git"; "checkout"; "-B"; tag]
+  let test_tag = "test"
+
+  let branch repo =
+    exec repo ["git"; "checkout"; "-B"; test_tag]
 
   let add repo file =
     if OpamFilename.exists file then
@@ -79,8 +89,6 @@ module Git = struct
   let checkout repo hash =
     exec repo ["git"; "checkout"; hash];
     exec repo ["git"; "clean"; "-fdx"]
-
-  let test_tag = "test"
 
 end
 
@@ -139,7 +147,7 @@ module Contents = struct
         let file = OpamFilename.create root base in
         OpamFilename.write file contents
       ) t;
-    Git.commit root "Add new content"
+    Git.commit root "Add new content for package %s" (OpamPackage.to_string nv)
 
 end
 
@@ -167,7 +175,11 @@ module Packages = struct
   let url kind path = function
     | 0 -> None
     | i ->
-      let path = OpamFilename.Dir.to_string path, None in
+      let path = match kind with
+        | Some `git   -> (OpamFilename.Dir.to_string path, Some Git.test_tag)
+        | None
+        | Some `local -> (OpamFilename.Dir.to_string path, None)
+        | _           -> failwith "TODO" in
       let url = URL.create kind path in
       let checksum = Printf.sprintf "checksum-%d" i in
       Some (URL.with_checksum url checksum)
@@ -178,7 +190,9 @@ module Packages = struct
 
   let archive contents nv seed =
     match seed with
-    | 0 -> None
+    | 0
+    | 1
+    | 3 -> None
     | _ ->
       let tmp_file = Filename.temp_file (OpamPackage.to_string nv) "archive" in
       log "Creating an archive file in %s" tmp_file;
@@ -244,11 +258,9 @@ module Packages = struct
     let commit file =
       if OpamFilename.exists file then (
         Git.add repo.repo_root file;
-        let msg =
-          Printf.sprintf "Add package %s (%s)"
-            (OpamPackage.to_string t.nv)
-            (OpamFilename.to_string file) in
-        Git.commit repo.repo_root msg;
+        Git.commit_file repo.repo_root file
+          "Add package %s (%s)"
+          (OpamPackage.to_string t.nv) (OpamFilename.to_string file);
         Some (Git.revision repo.repo_root, file);
       ) else
         None in
@@ -257,20 +269,7 @@ module Packages = struct
 
 end
 
-module OPAM_lib = struct
-
-  let init opam_root repo =
-    OpamGlobals.root_dir := OpamFilename.Dir.to_string opam_root;
-    OpamClient.API.init repo OpamCompiler.system
-      ~jobs:1 `sh (OpamFilename.raw "dummy") `no
-
-  let update path =
-    OpamGlobals.root_dir := OpamFilename.Dir.to_string path;
-    OpamClient.API.update []
-
-end
-
-module OPAM_bin = struct
+module OPAM = struct
 
   let opam opam_root command args =
     let debug = if !OpamGlobals.debug then ["--debug"] else [] in

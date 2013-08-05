@@ -65,7 +65,8 @@ let term_info title ~doc ~man =
 let test_case =
   let doc = Arg.info ~docv:"TEST" ~doc:"Name of the test to run." [] in
   let case = Arg.enum [
-      ("base", `base)
+      ("repo-update", `repo_update);
+      ("dev-update" , `dev_update);
     ] in
   Arg.(required & pos 1 (some case) None & doc)
 
@@ -91,7 +92,8 @@ let init =
     apply_global_options global_options;
     set_seed seed;
     match test with
-    | `base -> OpamRT.init_base kind path in
+    | `repo_update -> OpamRT.init_repo_update kind path
+    | `dev_update  -> OpamRT.init_dev_update kind path in
   Term.(pure init $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
@@ -110,7 +112,8 @@ let run =
     apply_global_options global_options;
     set_seed seed;
     match test with
-    | ` base -> OpamRT.test_base path in
+    | `repo_update -> OpamRT.test_repo_update path
+    | `dev_update  -> OpamRT.test_dev_update path in
   Term.(pure run $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 
