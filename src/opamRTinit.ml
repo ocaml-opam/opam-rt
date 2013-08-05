@@ -16,40 +16,52 @@
 
 open OpamRTcommon
 open OpamTypes
+open OpamFilename.OP
 
-let package name version seed =
+let package name version kind root seed =
   let pkg = Printf.sprintf "%s.%d" name version in
+  let nv = OpamPackage.of_string pkg in
+  let contents = Contents.create nv in
   Packages.({
-    pkg     = pkg;
-    prefix  = prefix name version;
-    opam    = opam pkg seed;
-    url     = url seed;
-    descr   = descr seed;
-    archive = archive seed;
+    pkg      = pkg;
+    prefix   = prefix nv;
+    opam     = opam nv seed;
+    url      = url kind (root / pkg) seed;
+    descr    = descr seed;
+    contents;
+    archive  = archive contents nv seed;
   })
 
-let a1 = package "a" 1
-let a2 = package "a" 2
+let a1 root =
+  package "a" 1 (Some `local) root
+
+let a2 root =
+  package "a" 2 (Some `git) root
 
 let not_very_random n =
   let i = Random.int n in
-  if i > n/2 then 0 else i
+  if i > Pervasives.(/) n 2 then 0 else i
 
-let ar _ =
-  package "a" (Random.int 10) (not_very_random 10)
+let ar root _ =
+  let seed = not_very_random 10 in
+  if Random.int 2 = 0 then
+    a1 root seed
+  else
+    a2 root seed
 
-let all = [
-  a1 0;
-  a1 1;
-  a1 2;
-  a2 2;
-  a2 1;
-  a2 0;
-] @ Array.to_list (Array.init 10 ar)
+let all root = [
+  a1 root 0;
+  a1 root 1;
+  a1 root 2;
+  a2 root 2;
+  a2 root 1;
+  a2 root 0;
+] @ Array.to_list (Array.init 10 (ar root))
 
 let create_single_repo repo tag =
   OpamFilename.mkdir repo.repo_root;
   Git.init repo;
+  let all = all repo.repo_root in
   let commits = List.map (Packages.add repo) all in
   Git.branch repo tag;
   commits

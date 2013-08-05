@@ -15,6 +15,7 @@
  *)
 
 open OpamTypes
+open OpamFilename.OP
 
 let seed_ref =
   ref 1664
@@ -79,30 +80,90 @@ module Git = struct
     exec repo ["git"; "checkout"; hash];
     exec repo ["git"; "clean"; "-fdx"]
 
+  let test_tag = "test"
+
+end
+
+module Contents = struct
+
+  let log = OpamGlobals.log "CONTENTS"
+
+  type t = (basename * string) list
+
+  let base = OpamFilename.Base.of_string
+
+  let random_string n =
+    let s = String.create n in
+    String.iteri (fun i _ ->
+        let c = Random.int 256 in
+        s.[i] <- char_of_int c
+      ) s;
+    s
+
+  let files () = [
+    base "a/a", random_string 10;
+    base "a/b", random_string 20;
+    base "b"  , random_string 20;
+  ]
+
+  let install name =
+    base (OpamPackage.Name.to_string name ^ ".install"),
+    "lib: [ \"a/a\" \"a/b\" ]\n\
+     bin: [ \"b\" ]\n"
+
+  let create nv =
+    List.sort compare (install (OpamPackage.name nv) :: files ())
+
+  let root repo nv =
+    OpamFilename.dirname_dir repo.repo_root / "contents" / OpamPackage.to_string nv
+
+  let read repo nv =
+    log "read %s" (OpamPackage.to_string nv);
+    let root = root repo nv in
+    let files = OpamFilename.rec_files root in
+    let files = List.map (fun file ->
+        let base = base (OpamFilename.remove_prefix root file) in
+        let content = OpamFilename.read file in
+        base, content
+      ) files in
+    List.sort compare files
+
+  let write repo nv t =
+    log "write %s" (OpamPackage.to_string nv);
+    let root = root repo nv in
+    List.iter (fun (base, contents) ->
+        let file = OpamFilename.create root base in
+        OpamFilename.write file contents
+      ) t
+
 end
 
 module Packages = struct
 
+  let log = OpamGlobals.log "PACKAGES"
+
   open OpamFile
 
   type t = {
-    pkg    : string;
-    prefix : string option;
-    opam   : OPAM.t;
-    url    : URL.t option;
-    descr  : Descr.t option;
-    archive: string option;
+    pkg     : string;
+    prefix  : string option;
+    opam    : OPAM.t;
+    url     : URL.t option;
+    descr   : Descr.t option;
+    contents: (basename * string) list;
+    archive : string option;
   }
 
-  let opam package seed =
-    let opam = OPAM.create (OpamPackage.of_string package) in
+  let opam nv seed =
+    let opam = OPAM.create nv in
     let maintainer = "test-" ^ string_of_int seed in
     OPAM.with_maintainer opam maintainer
 
-  let url = function
+  let url kind path = function
     | 0 -> None
     | i ->
-      let url = URL.empty in
+      let path = OpamFilename.Dir.to_string path, None in
+      let url = URL.create kind path in
       let checksum = Printf.sprintf "checksum-%d" i in
       Some (URL.with_checksum url checksum)
 
@@ -110,13 +171,32 @@ module Packages = struct
     | 0 -> None
     | i -> Some (Descr.of_string (Printf.sprintf "This is a very nice package (%d)!" i))
 
-  let archive = function
+  let archive contents nv seed =
+    match seed with
     | 0 -> None
-    | i -> Some (Printf.sprintf "I'm a tar archive! %d-%d-%d-%d" i i i i)
+    | _ ->
+      let tmp_file = Filename.temp_file (OpamPackage.to_string nv) "archive" in
+      log "Creating an archive file in %s" tmp_file;
+      OpamFilename.with_tmp_dir (fun root ->
+          let dir = root / OpamPackage.to_string nv in
+          List.iter (fun (base, contents) ->
+              let file = OpamFilename.create dir base in
+              OpamFilename.write file contents
+            ) contents;
+          OpamFilename.exec root [
+            ["tar"; "czf"; tmp_file; OpamPackage.to_string nv]
+          ];
+          let contents = OpamSystem.read tmp_file in
+          OpamSystem.remove tmp_file;
+          Some contents
+        )
 
-  let prefix name = function
-    | 1 -> None
-    | _ -> Some (Printf.sprintf "prefix-%s" name)
+  let prefix nv =
+    match OpamPackage.Version.to_string (OpamPackage.version nv) with
+    | "1" -> None
+    | _   ->
+      let name = OpamPackage.Name.to_string (OpamPackage.name nv) in
+      Some (Printf.sprintf "prefix-%s" name)
 
   let files repo prefix nv =
     let opam = OpamPath.Repository.opam repo prefix nv in
@@ -148,9 +228,10 @@ module Packages = struct
     let opam = OPAM.read opam in
     let descr = read_o Descr.read descr in
     let url = read_o URL.read url in
+    let contents = Contents.read repo nv in
     let archive = read_o OpamFilename.read archive in
     let pkg = OpamPackage.to_string nv in
-    { pkg; prefix; opam; descr; url; archive }
+    { pkg; prefix; opam; descr; url; contents; archive }
 
   let add repo t =
     write repo t;

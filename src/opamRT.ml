@@ -43,8 +43,6 @@ let run f x =
     newline ();
     error e
 
-let test_tag = "test"
-
 let init_base kind path =
   log "init-base %s\n" (OpamFilename.Dir.to_string path);
   if OpamFilename.exists_dir path then
@@ -56,7 +54,7 @@ let init_base kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
   let commits =
-    OpamRTinit.create_single_repo (OpamRepository.local repo_root) test_tag in
+    OpamRTinit.create_single_repo (OpamRepository.local repo_root) Git.test_tag in
   List.iter (fun (pkg, commits) ->
       List.iter (fun (commit, file) ->
           OpamGlobals.msg "%s adds %s (%s)\n" commit (OpamFilename.to_string file) pkg
@@ -69,7 +67,7 @@ let init_base kind path =
     (OpamFilename.Dir.to_string opam_root);
   let repo_name = OpamRepositoryName.of_string "base" in
   let repo_address = match kind with
-    | Some `git   -> OpamFilename.Dir.to_string repo_root, Some test_tag
+    | Some `git   -> OpamFilename.Dir.to_string repo_root, Some Git.test_tag
     | Some `local
     | None        -> OpamFilename.Dir.to_string repo_root, None
     | _           -> failwith "TODO" in
@@ -117,7 +115,7 @@ let test_base path =
   List.iter (fun (commit) ->
       OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo commit;
-      Git.branch repo test_tag;
+      Git.branch repo Git.test_tag;
       OPAM_bin.update root;
       Check.packages repo root;
     ) (shuffle commits)
