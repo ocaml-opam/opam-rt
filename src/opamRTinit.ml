@@ -82,4 +82,5 @@ let create_simple_repo repo contents_root contents_kind =
   List.iter (fun package ->
       Packages.write repo contents_root package
     ) all;
+  Git.branch (contents_root / "a.1");
   Git.commit repo.repo_root "Add package"
