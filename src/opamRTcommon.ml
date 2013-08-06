@@ -397,8 +397,9 @@ module Check = struct
 
     let opam =
       let libs =
-        OpamPath.Switch.lib opam_root OpamSwitch.default (OpamPackage.name nv) in
-      let bins = OpamPath.Switch.bin opam_root OpamSwitch.default in
+        OpamPath.Switch.lib_dir opam_root OpamSwitch.default in
+      let bins =
+        OpamPath.Switch.bin opam_root OpamSwitch.default in
       A.Map.union
         (fun x y -> failwith "union") (attributes libs) (attributes bins) in
 
@@ -406,6 +407,7 @@ module Check = struct
       let package_root = contents_root / OpamPackage.to_string nv in
       let filter file =
         if OpamFilename.starts_with (package_root / ".git") file then None
+        else if OpamFilename.ends_with ".install" file then None
         else Some package_root in
       attributes ~filter package_root in
 
