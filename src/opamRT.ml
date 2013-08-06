@@ -57,6 +57,7 @@ let init_paths kind path =
   let contents_root = path / "contents" in
   let repo_address = match kind with
     | Some `git   -> OpamFilename.Dir.to_string repo_root, Some Git.test_tag
+    | Some `http  -> "http://127.0.0.1:1234", None
     | Some `local
     | None        -> OpamFilename.Dir.to_string repo_root, None
     | _           -> failwith "TODO" in
@@ -70,19 +71,45 @@ let init_paths kind path =
   } in
   repo, opam_root, contents_root
 
+let update_server_index repo =
+  match repo.repo_kind with
+  | `http -> OpamFilename.exec repo.repo_root [["opam-mk-repo"; "--index"]]
+  | _ -> ()
+
+let stop_file_server repo =
+  match repo.repo_kind with
+  | `http -> (try OpamSystem.command ["killall"; "file-server"] with _ -> ())
+  | _     -> ()
+
+let start_file_server repo =
+  match repo.repo_kind with
+  | `http ->
+    at_exit (fun () -> stop_file_server repo);
+    begin match Unix.fork () with
+      | -1  -> OpamGlobals.error_and_exit "Fork error"
+      | 0   ->
+        let cmd = Filename.concat (Sys.getcwd ()) "file-server" in
+        Unix.execvp cmd [|cmd; OpamFilename.Dir.to_string repo.repo_root|]
+      | pid ->
+        update_server_index repo;
+        Unix.sleep 2
+    end
+  | _ -> ()
+
 let init_repo_update kind path =
   log "init-repo-update %s\n" (OpamFilename.Dir.to_string path);
   let repo, opam_root, contents_root = init_paths kind path in
   OpamGlobals.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
-  OpamRTinit.create_repo_with_history
-    (OpamRepository.local repo.repo_root)
-    contents_root;
+  OpamRTinit.create_repo_with_history repo contents_root;
+  OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+  start_file_server repo;
   OpamGlobals.msg
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
-  OPAM.init opam_root repo
+  OPAM.init opam_root repo;
+  stop_file_server repo
 
 let init_repo_update kind path =
   run (init_repo_update kind) path
@@ -94,6 +121,7 @@ let init_dev_update contents_kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
+  OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
   OPAM.init opam_root repo;
   OPAM.update opam_root
 
@@ -124,11 +152,11 @@ let repo_and_opam_root path =
     OpamGlobals.error_and_exit "opam-rt has not been initialized properly";
   let repo =
     let root = path / "repo" in
-    OpamRepository.local root in
+    let repo = OpamRepository.local root in
+    OpamFile.Repo_config.read (OpamPath.Repository.config repo) in
   let opam_root = path / "opam" in
   let contents_root = path / "contents" in
   repo, opam_root, contents_root
-
 
 (* Basic reposiotry update test: we verify that the global contents is
    the same as the repository contents after each new commit in the
@@ -137,14 +165,19 @@ let test_repo_update path =
   log "test-repo-update %s" (OpamFilename.Dir.to_string path);
   let repo, root, _ = repo_and_opam_root path in
   let commits = Git.commits repo.repo_root in
+  start_file_server repo;
+
   (* OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
   List.iter (fun commit ->
       OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo.repo_root commit;
       Git.branch repo.repo_root;
+      update_server_index repo;
       OPAM.update root;
       Check.packages repo root;
-    ) (shuffle commits)
+    ) (shuffle commits);
+
+  stop_file_server repo
 
 let test_repo_update path =
   run test_repo_update path
