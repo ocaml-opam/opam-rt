@@ -311,6 +311,10 @@ module OPAM = struct
   let upgrade opam_root package =
     opam opam_root "upgrade" [OpamPackage.to_string package]
 
+  let pin opam_root name path =
+    opam opam_root "pin"
+      [OpamPackage.Name.to_string name; OpamFilename.Dir.to_string path]
+
 end
 
 module Check = struct

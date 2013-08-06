@@ -67,6 +67,7 @@ let test_case =
   let case = Arg.enum [
       ("repo-update", `repo_update);
       ("dev-update" , `dev_update);
+      ("pin-update" , `pin_update);
     ] in
   Arg.(required & pos 1 (some case) None & doc)
 
@@ -93,7 +94,8 @@ let init =
     set_seed seed;
     match test with
     | `repo_update -> OpamRT.init_repo_update kind path
-    | `dev_update  -> OpamRT.init_dev_update kind path in
+    | `dev_update  -> OpamRT.init_dev_update kind path
+    | `pin_update  -> OpamRT.init_pin_update kind path in
   Term.(pure init $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
@@ -113,7 +115,8 @@ let run =
     set_seed seed;
     match test with
     | `repo_update -> OpamRT.test_repo_update path
-    | `dev_update  -> OpamRT.test_dev_update path in
+    | `dev_update  -> OpamRT.test_dev_update path
+    | `pin_update  -> OpamRT.test_pin_update path in
   Term.(pure run $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 

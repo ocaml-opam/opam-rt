@@ -34,12 +34,24 @@ dev-git:
 	$(OPAMRT) init $(TESTDIR) dev-update --kind git
 	$(OPAMRT) run $(TESTDIR)  dev-update
 
+pin-local:
+	rm -rf $(TESTDIR)
+	$(OPAMRT) init $(TESTDIR) pin-update --kind local
+	$(OPAMRT) run $(TESTDIR)  pin-update
+
+pin-git:
+	rm -rf $(TESTDIR)
+	$(OPAMRT) init $(TESTDIR) pin-update --kind git
+	$(OPAMRT) run $(TESTDIR)  pin-update
+
 run:
 	$(MAKE) repo-local
 	$(MAKE) repo-git
 	$(MAKE) repo-http
 	$(MAKE) dev-local
 	$(MAKE) dev-git
+	$(MAKE) pin-local
+	$(MAKE) pin-git
 
 clean:
 	rm -rf _build opam-rt file-server $(TESTDIR)

@@ -18,7 +18,8 @@ open OpamFilename.OP
 open OpamRTcommon
 open OpamTypes
 
-let log = OpamGlobals.log "RT"
+let log fmt =
+  OpamGlobals.log "RT" fmt
 
 let ok () =
   OpamGlobals.msg "%s\n%!" (Color.green "[SUCCESS]")
@@ -43,11 +44,13 @@ let run f x =
     newline ();
     error e
 
+type config = {
+  repo         : repository;
+  opam_root    : dirname;
+  contents_root: dirname;
+}
 
-
-(* INIT *)
-
-let init_paths kind path =
+let create_config kind path =
   if OpamFilename.exists_dir path then
     OpamGlobals.error_and_exit "%s already exists." (OpamFilename.Dir.to_string path);
   OpamFilename.mkdir path;
@@ -69,7 +72,18 @@ let init_paths kind path =
     repo_address;
     repo_kind;
   } in
-  repo, opam_root, contents_root
+  { repo; opam_root; contents_root }
+
+let read_config path =
+  if not (OpamFilename.exists_dir path) then
+    OpamGlobals.error_and_exit "opam-rt has not been initialized properly";
+  let repo =
+    let root = path / "repo" in
+    let repo = OpamRepository.local root in
+    OpamFile.Repo_config.read (OpamPath.Repository.config repo) in
+  let opam_root = path / "opam" in
+  let contents_root = path / "contents" in
+  { repo; opam_root; contents_root }
 
 let update_server_index repo =
   match repo.repo_kind with
@@ -96,9 +110,11 @@ let start_file_server repo =
     end
   | _ -> ()
 
-let init_repo_update kind path =
+(* INIT *)
+
+let init_repo_update_u kind path =
   log "init-repo-update %s\n" (OpamFilename.Dir.to_string path);
-  let repo, opam_root, contents_root = init_paths kind path in
+  let { repo; opam_root; contents_root } = create_config kind path in
   OpamGlobals.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
@@ -111,12 +127,9 @@ let init_repo_update kind path =
   OPAM.init opam_root repo;
   stop_file_server repo
 
-let init_repo_update kind path =
-  run (init_repo_update kind) path
-
-let init_dev_update contents_kind path =
+let init_dev_update_u contents_kind path =
   log "init-dev-update %s" (OpamFilename.Dir.to_string path);
-  let repo, opam_root, contents_root = init_paths (Some `local)  path in
+  let { repo; opam_root; contents_root } = create_config (Some `local)  path in
   OpamGlobals.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
@@ -125,45 +138,31 @@ let init_dev_update contents_kind path =
   OPAM.init opam_root repo;
   OPAM.update opam_root
 
+let init_pin_update_u contents_kind path =
+  log "init-pin-update";
+  init_dev_update_u contents_kind path;
+  let config = read_config path in
+  let pindir = config.contents_root / "a.0" in
+  OpamFilename.move_dir (config.contents_root / "a.1") pindir;
+  OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
+
+let init_repo_update kind path =
+  run (init_repo_update_u kind) path
+
 let init_dev_update kind path =
-  run (init_dev_update kind) path
+  run (init_dev_update_u kind) path
 
-let shuffle l =
-  let a = Array.init (List.length l) (fun _ -> None) in
-  let rec aux n = function
-    | []   -> ()
-    | h::t ->
-      let i = ref (Random.int n) in
-      while a.(!i mod Array.length a) <> None do incr i done;
-      a.(!i) <- Some h;
-      aux (n-1) t in
-  aux (List.length l) l;
-  Array.fold_left (fun acc -> function
-      | None   -> assert false
-      | Some i -> i :: acc
-    )  [] a
-
-
+let init_pin_update kind path =
+  run (init_pin_update_u kind) path
 
 (* TEST RUNS *)
-
-let repo_and_opam_root path =
-  if not (OpamFilename.exists_dir path) then
-    OpamGlobals.error_and_exit "opam-rt has not been initialized properly";
-  let repo =
-    let root = path / "repo" in
-    let repo = OpamRepository.local root in
-    OpamFile.Repo_config.read (OpamPath.Repository.config repo) in
-  let opam_root = path / "opam" in
-  let contents_root = path / "contents" in
-  repo, opam_root, contents_root
 
 (* Basic reposiotry update test: we verify that the global contents is
    the same as the repository contents after each new commit in the
    repository + upgrade. *)
-let test_repo_update path =
+let test_repo_update_u path =
   log "test-repo-update %s" (OpamFilename.Dir.to_string path);
-  let repo, root, _ = repo_and_opam_root path in
+  let { repo; opam_root ; _ } = read_config path in
   let commits = Git.commits repo.repo_root in
   start_file_server repo;
 
@@ -173,27 +172,24 @@ let test_repo_update path =
       Git.checkout repo.repo_root commit;
       Git.branch repo.repo_root;
       update_server_index repo;
-      OPAM.update root;
-      Check.packages repo root;
-    ) (shuffle commits);
+      OPAM.update opam_root;
+      Check.packages repo opam_root;
+    ) (OpamRTinit.shuffle commits);
 
   stop_file_server repo
 
-let test_repo_update path =
-  run test_repo_update path
-
 (* Basic dev package update test: we install the two packages and
    update their contents *)
-let test_dev_update path =
+let test_dev_update_u path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
-  let repo, opam_root, contents_root = repo_and_opam_root path in
+  let { repo; opam_root; contents_root } = read_config path in
   let packages = OpamRepository.packages repo in
   let packages = OpamPackage.Set.fold (fun nv acc ->
       let dir = path / "contents" / OpamPackage.to_string nv in
       if not (OpamFilename.exists_dir dir) then
         OpamGlobals.error_and_exit "Missing contents folder: %s"
           (OpamFilename.Dir.to_string dir);
-      (nv, (dir, shuffle (Git.commits dir))) :: acc
+      (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
     ) packages [] in
 
   (* install the packages *)
@@ -215,5 +211,11 @@ let test_dev_update path =
         ) commits
     ) packages
 
+let test_repo_update path =
+  run test_repo_update_u path
+
 let test_dev_update path =
-  run test_dev_update path
+  run test_dev_update_u path
+
+let test_pin_update path =
+  run test_dev_update_u path
