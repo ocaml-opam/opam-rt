@@ -76,17 +76,9 @@ let init_repo_update kind path =
   OpamGlobals.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
-  let commits = OpamRTinit.create_repo_with_history
-      (OpamRepository.local repo.repo_root)
-      contents_root in
-  List.iter (fun (pkg, commits) ->
-      List.iter (fun (commit, file) ->
-          OpamGlobals.msg "%s adds %s (%s)\n%!"
-            commit
-            (OpamFilename.to_string file)
-            (OpamPackage.to_string pkg)
-        ) commits
-    ) commits;
+  OpamRTinit.create_repo_with_history
+    (OpamRepository.local repo.repo_root)
+    contents_root;
   OpamGlobals.msg
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
@@ -163,7 +155,7 @@ let test_dev_update path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
   let repo, opam_root, contents_root = repo_and_opam_root path in
   let packages = OpamRepository.packages repo in
-  let commits = OpamPackage.Set.fold (fun nv acc ->
+  let packages = OpamPackage.Set.fold (fun nv acc ->
       let dir = path / "contents" / OpamPackage.to_string nv in
       if not (OpamFilename.exists_dir dir) then
         OpamGlobals.error_and_exit "Missing contents folder: %s"
@@ -172,7 +164,10 @@ let test_dev_update path =
     ) packages [] in
 
   (* install the packages *)
-  List.iter (fun (nv, _) -> OPAM.install opam_root nv) commits;
+  List.iter (fun (nv, _) ->
+      OpamGlobals.msg "Installing %s.\n" (OpamPackage.to_string nv);
+      OPAM.install opam_root nv;
+    ) packages;
 
   (* update and check *)
   List.iter (fun (nv, (dir, commits)) ->
@@ -185,7 +180,7 @@ let test_dev_update path =
           OPAM.upgrade opam_root nv;
           Check.contents contents_root opam_root nv;
         ) commits
-    ) commits
+    ) packages
 
 let test_dev_update path =
   run test_dev_update path

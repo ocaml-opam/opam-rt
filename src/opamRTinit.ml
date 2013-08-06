@@ -18,10 +18,10 @@ open OpamRTcommon
 open OpamTypes
 open OpamFilename.OP
 
-let package name version contents_kind contents_root seed =
+let package name version contents_kind contents_root ?(gener_archive=true) seed =
   let pkg = Printf.sprintf "%s.%d" name version in
   let nv = OpamPackage.of_string pkg in
-  let contents = Contents.create nv in
+  let contents = Contents.create nv seed in
   Packages.({
     nv;
     prefix   = prefix nv;
@@ -29,7 +29,7 @@ let package name version contents_kind contents_root seed =
     url      = url contents_kind (contents_root / pkg) seed;
     descr    = descr seed;
     contents;
-    archive  = archive contents nv seed;
+    archive  = if gener_archive then archive contents nv seed else None;
   })
 
 let a1 contents_root =
@@ -50,7 +50,7 @@ let ar root _ =
     a2 root seed
 
 let random_list n fn =
-  Array.to_list (Array.init 10 fn)
+  Array.to_list (Array.init n fn)
 
 (* Create a repository with 2 packages and a complex history *)
 let create_repo_with_history repo contents_root =
@@ -64,23 +64,22 @@ let create_repo_with_history repo contents_root =
     a2 contents_root 1;
     a2 contents_root 0;
   ] @ random_list 10 (ar repo.repo_root) in
-  let commits = List.map (Packages.add repo) all in
-  Git.branch repo.repo_root;
-  commits
+  List.iter (Packages.add repo contents_root) all;
+  Git.branch repo.repo_root
 
 (* Create a repository with a single package without archive file and
    no history. *)
 let create_simple_repo repo contents_root contents_kind =
   OpamFilename.mkdir repo.repo_root;
   Git.init repo.repo_root;
-  let package0 = package "a" 1 contents_kind contents_root 10 in
+  let package0 = package "a" 1 contents_kind contents_root ~gener_archive:false 10 in
+  Packages.add repo contents_root package0;
   let all =
     package0
     :: random_list 20 (fun _ ->
-        package "a" 1 contents_kind contents_root (Random.int 20)
+        package "a" 1 contents_kind contents_root ~gener_archive:false (Random.int 20)
       ) in
   List.iter (fun package ->
-      Packages.write repo package
+      Packages.write repo contents_root package
     ) all;
-  let _ = Packages.add repo package0 in
   Git.commit repo.repo_root "Add package"
