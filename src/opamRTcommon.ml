@@ -282,6 +282,24 @@ module Packages = struct
 
 end
 
+let read_url opam_root nv =
+  let read file =
+    if OpamFilename.exists file then Some (OpamFile.URL.read file) else None in
+  let pinned_url =
+    let nv = OpamPackage.pinned (OpamPackage.name nv) in
+    OpamPath.Switch.url opam_root OpamSwitch.default nv in
+  let overlay_url = OpamPath.Switch.url opam_root OpamSwitch.default nv in
+  let url = OpamPath.url opam_root nv in
+  match read pinned_url with
+  | Some u -> Some u
+  | None   ->
+    match read overlay_url with
+    | Some u -> Some u
+    | None   ->
+      match read url with
+      | Some u -> Some u
+      | None   -> None
+
 module OPAM = struct
 
   let opam opam_root command args =
@@ -302,8 +320,11 @@ module OPAM = struct
       "--kind"; kind
     ]
 
-  let install opam_root package =
-    opam opam_root "install" [OpamPackage.to_string package]
+  let install opam_root name =
+    opam opam_root "install" [OpamPackage.Name.to_string name]
+
+  let remove opam_root name =
+    opam opam_root "remove" [OpamPackage.Name.to_string name]
 
   let update opam_root =
     opam opam_root "update" ["--sync-archives"]
@@ -397,7 +418,7 @@ module Check = struct
     let o = OpamPath.archives_dir root in
     check_dirs ("repo", r) ("opam", o)
 
-  let contents contents_root opam_root nv =
+  let contents opam_root nv =
 
     let opam =
       let libs =
@@ -408,12 +429,15 @@ module Check = struct
         (fun x y -> failwith "union") (attributes libs) (attributes bins) in
 
     let contents =
-      let package_root = contents_root / OpamPackage.to_string nv in
-      let filter file =
-        if OpamFilename.starts_with (package_root / ".git") file then None
-        else if OpamFilename.ends_with ".install" file then None
-        else Some package_root in
-      attributes ~filter package_root in
+      match read_url opam_root nv with
+      | None   -> A.Map.empty
+      | Some u ->
+        let package_root = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
+        let filter file =
+          if OpamFilename.starts_with (package_root / ".git") file then None
+          else if OpamFilename.ends_with ".install" file then None
+          else Some package_root in
+        attributes ~filter package_root in
 
     check_attributes ("opam", opam) ("contents", contents)
 

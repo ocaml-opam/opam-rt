@@ -144,6 +144,7 @@ let init_pin_update_u contents_kind path =
   let config = read_config path in
   let pindir = config.contents_root / "a.0" in
   OpamFilename.move_dir (config.contents_root / "a.1") pindir;
+  OpamGlobals.msg "Pinning a ...\n";
   OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
 
 let init_repo_update kind path =
@@ -185,17 +186,22 @@ let test_dev_update_u path =
   let { repo; opam_root; contents_root } = read_config path in
   let packages = OpamRepository.packages repo in
   let packages = OpamPackage.Set.fold (fun nv acc ->
-      let dir = path / "contents" / OpamPackage.to_string nv in
-      if not (OpamFilename.exists_dir dir) then
-        OpamGlobals.error_and_exit "Missing contents folder: %s"
-          (OpamFilename.Dir.to_string dir);
-      (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
+      let url = read_url opam_root nv in
+      match url with
+      | None   -> acc
+      | Some u ->
+        let dir = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
+        if not (OpamFilename.exists_dir dir) then
+          OpamGlobals.error_and_exit "Missing contents folder: %s"
+            (OpamFilename.Dir.to_string dir);
+        (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
     ) packages [] in
 
   (* install the packages *)
   List.iter (fun (nv, _) ->
       OpamGlobals.msg "Installing %s.\n" (OpamPackage.to_string nv);
-      OPAM.install opam_root nv;
+      OPAM.remove opam_root (OpamPackage.name nv);
+      OPAM.install opam_root (OpamPackage.name nv);
     ) packages;
 
   (* update and check *)
@@ -207,7 +213,7 @@ let test_dev_update_u path =
           Git.branch dir;
           OPAM.update opam_root;
           OPAM.upgrade opam_root nv;
-          Check.contents contents_root opam_root nv;
+          Check.contents opam_root nv;
         ) commits
     ) packages
 
