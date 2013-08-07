@@ -105,32 +105,33 @@ module Git = struct
 
 end
 
+let random_string n =
+  let s = String.create n in
+  String.iteri (fun i _ ->
+      let c = int_of_char 'A' + Random.int 58 in
+      s.[i] <- char_of_int c
+    ) s;
+  s
+
+let base = OpamFilename.Base.of_string
+
 module Contents = struct
 
   let log = OpamGlobals.log "CONTENTS"
 
   type t = (basename * string) list
 
-  let base = OpamFilename.Base.of_string
-
-  let random_string n =
-    let s = String.create n in
-    String.iteri (fun i _ ->
-        let c = int_of_char 'A' + Random.int 58 in
-        s.[i] <- char_of_int c
-      ) s;
-    s
-
   let files seed = [
-    base "a/a", random_string (1 + seed * 2);
-    base "a/b", random_string (1 + seed * 3);
+    base "x/a", random_string (1 + seed * 2);
+    base "x/b", random_string (1 + seed * 3);
     base "c"  , random_string (1 + seed);
   ]
 
   let install name =
     base (OpamPackage.Name.to_string name ^ ".install"),
-    "lib: [ \"a/a\" \"a/b\" ]\n\
-     bin: [ \"c\" ]\n"
+    Printf.sprintf
+      "lib: [ \"x/a\" \"x/b\" \"?1\" \"?k/1\" { \"k/1\" }]\n\
+       bin: [ \"c\" ]\n"
 
   let create nv seed =
     List.sort compare (install (OpamPackage.name nv) :: files seed)
@@ -176,6 +177,7 @@ module Packages = struct
     opam    : OPAM.t;
     url     : URL.t option;
     descr   : Descr.t option;
+    files   : (basename * string) list;
     contents: (basename * string) list;
     archive : string option;
   }
@@ -230,45 +232,66 @@ module Packages = struct
       let name = OpamPackage.Name.to_string (OpamPackage.name nv) in
       Some (Printf.sprintf "prefix-%s" name)
 
-  let files repo prefix nv =
+  let files = function
+    | 0 -> []
+    | i -> [ (base "1", random_string i); (base "k/1", random_string (i*2)) ]
+
+  let file_list repo prefix nv =
     let opam = OpamPath.Repository.opam repo prefix nv in
     let descr = OpamPath.Repository.descr repo prefix nv in
     let url = OpamPath.Repository.url repo prefix nv in
+    let files = OpamPath.Repository.files repo prefix nv in
     let archive = OpamPath.Repository.archive repo nv in
-    opam, descr, url, archive
+    opam, descr, url, files, archive
 
-  let files_of_t repo t =
-    files repo t.prefix t.nv
+  let file_list_of_t repo t =
+    file_list repo t.prefix t.nv
 
   let write_o f = function
     | None   -> ()
     | Some x -> f x
 
   let write repo contents_root t =
-    let opam, descr, url, archive = files_of_t repo t in
+    let opam, descr, url, files, archive = file_list_of_t repo t in
     List.iter OpamFilename.remove [opam; descr; url; archive];
+    OpamFilename.rmdir files;
     OPAM.write opam t.opam;
     write_o (Descr.write descr) t.descr;
     write_o (URL.write url) t.url;
     write_o (OpamFilename.write archive) t.archive;
-    Contents.write contents_root t.nv t.contents
+    Contents.write contents_root t.nv t.contents;
+    if t.files <> [] then (
+      OpamFilename.mkdir files;
+      List.iter (fun (base, str) ->
+          let file = OpamFilename.create files base in
+          OpamFilename.write file str
+        ) t.files
+    )
 
   let read_o f file =
     if OpamFilename.exists file then Some (f file)
     else None
 
   let read repo contents_root prefix nv =
-    let opam, descr, url, archive = files repo prefix nv in
+    let opam, descr, url, files, archive = file_list repo prefix nv in
     let opam = OPAM.read opam in
     let descr = read_o Descr.read descr in
     let url = read_o URL.read url in
+    let files =
+      if not (OpamFilename.exists_dir files) then []
+      else
+        let all = OpamFilename.rec_files files in
+        List.map (fun file ->
+            OpamFilename.Base.of_string (OpamFilename.remove_prefix files file),
+            OpamFilename.read file
+          ) all in
     let contents = Contents.read contents_root nv in
     let archive = read_o OpamFilename.read archive in
-    { nv; prefix; opam; descr; url; contents; archive }
+    { nv; prefix; opam; descr; url; files; contents; archive }
 
   let add repo contents_root t =
     write repo contents_root t;
-    let opam, descr, url, archive = files_of_t repo t in
+    let opam, descr, url, files, archive = file_list_of_t repo t in
     let commit file =
       if OpamFilename.exists file then (
         Git.add repo.repo_root file;
@@ -278,7 +301,16 @@ module Packages = struct
         let commit = Git.revision repo.repo_root in
         Git.msg repo.repo_root commit t.nv "Add %s" (OpamFilename.to_string file);
       ) in
-    List.iter commit [opam; descr; url; archive]
+    List.iter commit [opam; descr; url; archive];
+    if OpamFilename.exists_dir files then (
+      let all = OpamFilename.rec_files files in
+      List.iter (Git.add repo.repo_root) all;
+      Git.commit_file repo.repo_root
+        (OpamFilename.of_string (OpamFilename.Dir.to_string files))
+        "Adding files/* for package %s" (OpamPackage.to_string t.nv);
+      let commit = Git.revision repo.repo_root in
+      Git.msg repo.repo_root commit t.nv "Add %s" (OpamFilename.Dir.to_string files)
+    )
 
 end
 
@@ -422,7 +454,7 @@ module Check = struct
 
     let opam =
       let libs =
-        OpamPath.Switch.lib_dir opam_root OpamSwitch.default in
+        OpamPath.Switch.lib opam_root OpamSwitch.default (OpamPackage.name nv) in
       let bins =
         OpamPath.Switch.bin opam_root OpamSwitch.default in
       A.Map.union
@@ -432,12 +464,17 @@ module Check = struct
       match read_url opam_root nv with
       | None   -> A.Map.empty
       | Some u ->
-        let package_root = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
-        let filter file =
-          if OpamFilename.starts_with (package_root / ".git") file then None
-          else if OpamFilename.ends_with ".install" file then None
-          else Some package_root in
-        attributes ~filter package_root in
+        let base =
+          let package_root = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
+          let filter file =
+            if OpamFilename.starts_with (package_root / ".git") file then None
+            else if OpamFilename.ends_with ".install" file then None
+            else Some (OpamFilename.dirname file) in
+          attributes ~filter package_root in
+        let files =
+          attributes (OpamState.files opam_root nv) in
+
+        A.Map.union (fun x y -> x) files base in
 
     check_attributes ("opam", opam) ("contents", contents)
 

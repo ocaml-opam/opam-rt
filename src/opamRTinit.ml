@@ -37,14 +37,16 @@ let package name version contents_kind contents_root ?(gener_archive=true) seed 
   let pkg = Printf.sprintf "%s.%d" name version in
   let nv = OpamPackage.of_string pkg in
   let contents = Contents.create nv seed in
+  let files_ = Packages.files seed in
   Packages.({
     nv;
     prefix   = prefix nv;
     opam     = opam nv seed;
     url      = url contents_kind (contents_root / pkg) seed;
     descr    = descr seed;
+    files    = files_;
     contents;
-    archive  = if gener_archive then archive contents nv seed else None;
+    archive  = if gener_archive then archive (files_ @ contents) nv seed else None;
   })
 
 let a1 contents_root =
@@ -78,7 +80,7 @@ let create_repo_with_history repo contents_root =
     a2 contents_root 2;
     a2 contents_root 1;
     a2 contents_root 0;
-  ] @ random_list 10 (ar repo.repo_root) in
+  ] @ random_list 5 (ar repo.repo_root) in
   List.iter (Packages.add repo contents_root) all;
   Git.branch repo.repo_root
 
