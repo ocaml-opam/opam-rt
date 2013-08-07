@@ -450,6 +450,16 @@ module Check = struct
     let o = OpamPath.archives_dir root in
     check_dirs ("repo", r) ("opam", o)
 
+  let files_dir opam_root nv =
+    let pin = OpamPackage.pinned (OpamPackage.name nv) in
+    let d1 = OpamPath.Switch.files opam_root OpamSwitch.default pin in
+    let d2 = OpamPath.Switch.files opam_root OpamSwitch.default nv in
+    let d3 = OpamPath.files opam_root nv in
+    if OpamFilename.exists_dir d1 then Some d1
+    else if OpamFilename.exists_dir d2 then Some d2
+    else if OpamFilename.exists_dir d3 then Some d3
+    else None
+
   let contents opam_root nv =
 
     let opam =
@@ -471,8 +481,9 @@ module Check = struct
             else if OpamFilename.ends_with ".install" file then None
             else Some (OpamFilename.dirname file) in
           attributes ~filter package_root in
-        let files =
-          attributes (OpamState.files opam_root nv) in
+        let files = match files_dir opam_root nv with
+          | None   -> A.Map.empty
+          | Some d -> attributes d in
 
         A.Map.union (fun x y -> x) files base in
 
