@@ -1,7 +1,7 @@
 BUILD=ocamlbuild -use-ocamlfind -pkgs opam.client,cohttp.lwt -no-links
 TARGETS=src/opamRTmain.native src/file_server.native
 
-OPAMRT=./opam-RT
+OPAMRT=./opam-rt
 TESTDIR=/tmp/xxx
 
 all:
