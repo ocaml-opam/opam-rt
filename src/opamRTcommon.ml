@@ -37,6 +37,9 @@ module Color = struct
   let yellow fmt =
     Printf.ksprintf (fun s -> Printf.sprintf "\027[33m%s\027[m" s) fmt
 
+  let blue fmt =
+    Printf.ksprintf (fun s -> Printf.sprintf "\027[34m%s\027[m" s) fmt
+
 end
 
 module Git = struct
@@ -335,6 +338,7 @@ let read_url opam_root nv =
 module OPAM = struct
 
   let opam opam_root command args =
+    OpamGlobals.msg "%s\n" (Color.blue ">> opam %s %s " command (String.concat " " args));
     let debug = if !OpamGlobals.debug then ["--debug"] else [] in
     OpamSystem.command
       ("opam" :: command ::
