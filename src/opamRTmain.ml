@@ -141,7 +141,7 @@ let default =
        See 'opam-rt help <command>' for more information on a specific command.\n"
       init_doc run_doc in
   Term.(pure usage $global_options),
-  Term.info "opam"
+  Term.info "opam-rt"
     ~version
     ~sdocs:global_option_section
     ~doc
