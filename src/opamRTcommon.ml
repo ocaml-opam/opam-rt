@@ -342,6 +342,7 @@ module OPAM = struct
     let debug = if !OpamGlobals.debug then ["--debug"] else [] in
     OpamSystem.command
       ("opam" :: command ::
+         "--yes" ::
          ["--root"; (OpamFilename.Dir.to_string opam_root)]
          @ debug
          @ args)
