@@ -27,7 +27,8 @@ let ok () =
 let error e =
   OpamGlobals.msg "%s\n%s\n%!"
     (Printexc.to_string e)
-    (Color.red "[ERROR]")
+    (Color.red "[ERROR]");
+  exit 1
 
 let newline () =
   OpamGlobals.msg "\n"
