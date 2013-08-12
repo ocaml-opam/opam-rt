@@ -190,6 +190,13 @@ module Packages = struct
     let maintainer = "test-" ^ string_of_int seed in
     OPAM.with_maintainer opam maintainer
 
+  let add_depend t ?(formula=OpamFormula.Empty) name =
+    let depends =
+      OpamFormula.And
+        (OPAM.depends t.opam,
+         Atom (OpamPackage.Name.of_string name, formula)) in
+    { t with opam = OPAM.with_depends t.opam depends }
+
   let url kind path = function
     | 0 -> None
     | i ->
