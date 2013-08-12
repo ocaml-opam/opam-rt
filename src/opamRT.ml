@@ -87,7 +87,7 @@ let read_config path =
 
 let update_server_index repo =
   match repo.repo_kind with
-  | `http -> OpamFilename.exec repo.repo_root [["opam-mk-repo"; "--index"]]
+  | `http -> OpamFilename.exec repo.repo_root [["opam-admin"; "make"; "--index"]]
   | _ -> ()
 
 let stop_file_server repo =
