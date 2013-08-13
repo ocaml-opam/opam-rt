@@ -148,6 +148,32 @@ let init_pin_update_u contents_kind path =
   OpamGlobals.msg "Pinning a ...\n";
   OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
 
+let init_pin_install_u contents_kind path =
+  log "init-pin-install";
+  let { repo; opam_root; contents_root } = create_config (Some `local)  path in
+  OpamGlobals.msg
+    "Creating a new repository in %s/ ...\n"
+    (OpamFilename.Dir.to_string repo.repo_root);
+  OpamRTinit.create_simple_repo repo contents_root contents_kind;
+  let packages =
+    let a1 = OpamRTinit.package "a" 1 (Some `local) contents_root 442 in
+    let a2 = OpamRTinit.package "a" 2 (Some `local) contents_root 443 in
+    let b1 = OpamRTinit.package "b" 1 (Some `local) contents_root 444 in
+    let b2 = OpamRTinit.package "b" 2 (Some `local) contents_root 445 in
+    let b1 = Packages.add_depend b1 "a" ~formula:(Atom (`Eq, OpamPackage.Version.of_string "1")) in
+    let b2 = Packages.add_depend b2 "a" ~formula:(Atom (`Eq, OpamPackage.Version.of_string "2")) in
+    [ a1; a2; b1; b2 ]
+  in
+  List.iter (Packages.add repo contents_root) packages;
+  OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+  OPAM.init opam_root repo;
+  OPAM.update opam_root;
+  let config = read_config path in
+  let pindir = config.contents_root / "a.pinned" in
+  OpamFilename.copy_dir ~src:(config.contents_root / "a.1") ~dst:pindir;
+  OpamGlobals.msg "Pinning a ...\n";
+  OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
+
 let init_repo_update kind path =
   run (init_repo_update_u kind) path
 
@@ -156,6 +182,9 @@ let init_dev_update kind path =
 
 let init_pin_update kind path =
   run (init_pin_update_u kind) path
+
+let init_pin_install kind path =
+  run (init_pin_install_u kind) path
 
 (* TEST RUNS *)
 
@@ -218,6 +247,26 @@ let test_dev_update_u path =
         ) commits
     ) packages
 
+
+(* Basic dev package pin test:
+   4 packages: a.1 a.2, b.1, b.2
+   b.1 depends on a.1
+   b.2 depends on a.2
+   - pin a to a local path
+   - install b
+   - try to install explicitely b.1, b.2
+*)
+let test_pin_install_u path =
+  log "test-base-update %s" (OpamFilename.Dir.to_string path);
+  let { repo; opam_root; contents_root } = read_config path in
+  OPAM.install opam_root (OpamPackage.Name.of_string "b");
+  (try
+    OPAM.install opam_root (OpamPackage.Name.of_string "b.1");
+    failwith "should fail"
+   with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
+  OPAM.remove opam_root (OpamPackage.Name.of_string "b");
+  OPAM.install opam_root (OpamPackage.Name.of_string "b.2")
+
 let test_repo_update path =
   run test_repo_update_u path
 
@@ -226,3 +275,6 @@ let test_dev_update path =
 
 let test_pin_update path =
   run test_dev_update_u path
+
+let test_pin_install path =
+  run test_pin_install_u path

@@ -68,6 +68,7 @@ let test_case =
       ("repo-update", `repo_update);
       ("dev-update" , `dev_update);
       ("pin-update" , `pin_update);
+      ("pin-install" , `pin_install);
     ] in
   Arg.(required & pos 1 (some case) None & doc)
 
@@ -95,7 +96,8 @@ let init =
     match test with
     | `repo_update -> OpamRT.init_repo_update kind path
     | `dev_update  -> OpamRT.init_dev_update kind path
-    | `pin_update  -> OpamRT.init_pin_update kind path in
+    | `pin_update  -> OpamRT.init_pin_update kind path
+    | `pin_install -> OpamRT.init_pin_install kind path in
   Term.(pure init $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
@@ -116,7 +118,8 @@ let run =
     match test with
     | `repo_update -> OpamRT.test_repo_update path
     | `dev_update  -> OpamRT.test_dev_update path
-    | `pin_update  -> OpamRT.test_pin_update path in
+    | `pin_update  -> OpamRT.test_pin_update path
+    | `pin_install  -> OpamRT.test_pin_install path in
   Term.(pure run $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 
