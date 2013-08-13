@@ -37,6 +37,9 @@ module Color = struct
   let yellow fmt =
     Printf.ksprintf (fun s -> Printf.sprintf "\027[33m%s\027[m" s) fmt
 
+  let blue fmt =
+    Printf.ksprintf (fun s -> Printf.sprintf "\027[34m%s\027[m" s) fmt
+
 end
 
 module Git = struct
@@ -187,6 +190,13 @@ module Packages = struct
     let maintainer = "test-" ^ string_of_int seed in
     OPAM.with_maintainer opam maintainer
 
+  let add_depend t ?(formula=OpamFormula.Empty) name =
+    let depends =
+      OpamFormula.And
+        (OPAM.depends t.opam,
+         Atom (OpamPackage.Name.of_string name, formula)) in
+    { t with opam = OPAM.with_depends t.opam depends }
+
   let url kind path = function
     | 0 -> None
     | i ->
@@ -335,9 +345,11 @@ let read_url opam_root nv =
 module OPAM = struct
 
   let opam opam_root command args =
+    OpamGlobals.msg "%s\n" (Color.blue ">> opam %s %s " command (String.concat " " args));
     let debug = if !OpamGlobals.debug then ["--debug"] else [] in
     OpamSystem.command
       ("opam" :: command ::
+         "--yes" ::
          ["--root"; (OpamFilename.Dir.to_string opam_root)]
          @ debug
          @ args)

@@ -1,7 +1,7 @@
 BUILD=ocamlbuild -use-ocamlfind -pkgs opam.client,cohttp.lwt -no-links
 TARGETS=src/opamRTmain.native src/file_server.native
 
-OPAMRT=./opam-RT
+OPAMRT=./opam-rt
 TESTDIR=/tmp/xxx
 
 all:
@@ -44,6 +44,16 @@ pin-git:
 	$(OPAMRT) init $(TESTDIR) pin-update --kind git
 	$(OPAMRT) run $(TESTDIR)  pin-update
 
+pin-install-local:
+	rm -rf $(TESTDIR)
+	$(OPAMRT) init $(TESTDIR) pin-install --kind local
+	$(OPAMRT) run $(TESTDIR)  pin-install
+
+pin-install-git:
+	rm -rf $(TESTDIR)
+	$(OPAMRT) init $(TESTDIR) pin-install --kind git
+	$(OPAMRT) run $(TESTDIR)  pin-install
+
 run:
 	$(MAKE) repo-local
 	$(MAKE) repo-git
@@ -52,6 +62,8 @@ run:
 	$(MAKE) dev-git
 	$(MAKE) pin-local
 	$(MAKE) pin-git
+	$(MAKE) pin-install-local
+	$(MAKE) pin-install-git
 
 clean:
 	rm -rf _build opam-rt file-server $(TESTDIR)
