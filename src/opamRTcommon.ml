@@ -329,8 +329,8 @@ let read_url opam_root nv =
     if OpamFilename.exists file then Some (OpamFile.URL.read file) else None in
   let pinned_url =
     let nv = OpamPackage.pinned (OpamPackage.name nv) in
-    OpamPath.Switch.url opam_root OpamSwitch.default nv in
-  let overlay_url = OpamPath.Switch.url opam_root OpamSwitch.default nv in
+    OpamPath.Switch.Overlay.url opam_root OpamSwitch.default nv in
+  let overlay_url = OpamPath.Switch.Overlay.url opam_root OpamSwitch.default nv in
   let url = OpamPath.url opam_root nv in
   match read pinned_url with
   | Some u -> Some u
@@ -364,17 +364,23 @@ module OPAM = struct
       "--kind"; kind
     ]
 
-  let install opam_root name =
-    opam opam_root "install" [OpamPackage.Name.to_string name]
+  let install opam_root ?version name =
+    opam opam_root "install" [
+      match version with
+      | None -> OpamPackage.Name.to_string name
+      | Some v -> OpamPackage.to_string (OpamPackage.create name v)
+    ]
 
-  let remove opam_root name =
-    opam opam_root "remove" [OpamPackage.Name.to_string name]
+  let remove opam_root ?(auto=false) name =
+    opam opam_root "remove"
+      ((if auto then ["-a"] else [])
+       @ [OpamPackage.Name.to_string name])
 
   let update opam_root =
     opam opam_root "update" ["--sync-archives"]
 
-  let upgrade opam_root package =
-    opam opam_root "upgrade" [OpamPackage.to_string package]
+  let upgrade opam_root packages =
+    opam opam_root "upgrade" (List.map OpamPackage.to_string packages)
 
   let pin opam_root name path =
     opam opam_root "pin"
@@ -464,8 +470,8 @@ module Check = struct
 
   let files_dir opam_root nv =
     let pin = OpamPackage.pinned (OpamPackage.name nv) in
-    let d1 = OpamPath.Switch.files opam_root OpamSwitch.default pin in
-    let d2 = OpamPath.Switch.files opam_root OpamSwitch.default nv in
+    let d1 = OpamPath.Switch.Overlay.files opam_root OpamSwitch.default pin in
+    let d2 = OpamPath.Switch.Overlay.files opam_root OpamSwitch.default nv in
     let d3 = OpamPath.files opam_root nv in
     if OpamFilename.exists_dir d1 then Some d1
     else if OpamFilename.exists_dir d2 then Some d2
