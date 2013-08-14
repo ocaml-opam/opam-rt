@@ -86,6 +86,41 @@ let read_config path =
   let contents_root = path / "contents" in
   { repo; opam_root; contents_root }
 
+type installed = { installed: package_set; installed_roots: package_set }
+let read_installed path =
+  let opam_root = path / "opam" in
+  {
+    installed = OpamFile.Installed.read
+        (OpamPath.Switch.installed opam_root OpamSwitch.default);
+    installed_roots = OpamFile.Installed_roots.read
+        (OpamPath.Switch.installed_roots opam_root OpamSwitch.default);
+  }
+
+let check_installed path  ?(roots = []) installed_list =
+  let { installed; installed_roots } = read_installed path in
+  let wished_installed = OpamPackage.Set.of_list installed_list in
+  let wished_roots = OpamPackage.Set.of_list roots in
+  let pkg_list roots list =
+    (String.concat " "
+       (List.map (fun nv ->
+            if OpamPackage.Set.mem nv installed_roots
+            then "\027[4m" ^ OpamPackage.to_string nv ^ "\027[m"
+            else OpamPackage.to_string nv)
+           list))
+  in
+  if OpamPackage.Set.compare installed wished_installed = 0
+  && (roots = [] || OpamPackage.Set.compare wished_roots installed_roots = 0)
+  then
+    OpamGlobals.msg "%a installed: %s\n"
+      (fun () -> Color.green "%s") "[OK]"
+      (pkg_list installed_roots installed_list)
+  else
+    (OpamGlobals.msg "%a installed: %s\n       expecting: %s\n"
+       (fun () -> Color.red "%s") "[FAIL]"
+       (pkg_list installed_roots (OpamPackage.Set.elements installed))
+       (pkg_list wished_roots installed_list);
+     failwith "Installed packages don't match expectations")
+
 let update_server_index repo =
   match repo.repo_kind with
   | `http -> OpamFilename.exec repo.repo_root [["opam-admin"; "make"; "--index"]]
@@ -242,30 +277,50 @@ let test_dev_update_u path =
           Git.checkout dir commit;
           Git.branch dir;
           OPAM.update opam_root;
-          OPAM.upgrade opam_root nv;
+          OPAM.upgrade opam_root [nv];
           Check.contents opam_root nv;
         ) commits
     ) packages
 
 
-(* Basic dev package pin test:
-   4 packages: a.1 a.2, b.1, b.2
-   b.1 depends on a.1
-   b.2 depends on a.2
-   - pin a to a local path
-   - install b
-   - try to install explicitely b.1, b.2
-*)
 let test_pin_install_u path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
   let { repo; opam_root; contents_root } = read_config path in
-  OPAM.install opam_root (OpamPackage.Name.of_string "b");
+  let b = OpamPackage.Name.of_string "b" in
+  let a = OpamPackage.Name.of_string "a" in
+  let v version = OpamPackage.Version.of_string (string_of_int version) in
+  let (-) name version = OpamPackage.create name (v version) in
+  let overlay name =
+    OpamPath.Switch.Overlay.opam opam_root OpamSwitch.default (OpamPackage.pinned name) in
+  (* Install b (version 2) *)
+  OPAM.install opam_root b;
+  check_installed path ~roots:[ b-2 ] [ a-2; b-2 ];
+  (* Attempt to install b.1 (should fail because a is pinned to 2) *)
   (try
-    OPAM.install opam_root (OpamPackage.Name.of_string "b.1");
+    OPAM.install opam_root b ~version:(v 1);
     failwith "should fail"
    with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
-  OPAM.remove opam_root (OpamPackage.Name.of_string "b");
-  OPAM.install opam_root (OpamPackage.Name.of_string "b.2")
+  check_installed path ~roots:[ b-2 ] [ a-2; b-2 ];
+  (* Cleanup *)
+  OPAM.remove opam_root ~auto:true (OpamPackage.Name.of_string "b");
+  check_installed path [];
+  (* Change pinned version of a to 1 *)
+  OpamFile.OPAM.write (overlay a)
+    (OpamFile.OPAM.with_version (OpamFile.OPAM.read (overlay a)) (v 1));
+  (* Attempt to install b 2 *)
+  (try
+    OPAM.install opam_root b ~version:(v 2);
+    failwith "should fail"
+   with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
+  check_installed path [];
+  (* Install b, should get version 1 *)
+  OPAM.install opam_root b;
+  check_installed path ~roots:[ b-1 ] [ b-1; a-1 ];
+  (* Change pinned version of installed package a back to 2 *)
+  OpamFile.OPAM.write (overlay a)
+    (OpamFile.OPAM.with_version (OpamFile.OPAM.read (overlay a)) (v 2));
+  OPAM.upgrade opam_root [];
+  check_installed path ~roots:[ b-2 ] [ b-2; a-2 ]
 
 let test_repo_update path =
   run test_repo_update_u path
