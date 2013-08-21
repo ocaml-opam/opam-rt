@@ -288,39 +288,44 @@ let test_pin_install_u path =
   let { repo; opam_root; contents_root } = read_config path in
   let b = OpamPackage.Name.of_string "b" in
   let a = OpamPackage.Name.of_string "a" in
+  let pinned = OpamPackage.Version.pinned in
   let v version = OpamPackage.Version.of_string (string_of_int version) in
-  let (-) name version = OpamPackage.create name (v version) in
+  let (-) = OpamPackage.create in
   let overlay name =
     OpamPath.Switch.Overlay.opam opam_root OpamSwitch.default (OpamPackage.pinned name) in
-  (* Install b (version 2) *)
+  let map_overlay f pkg =
+    let o = overlay pkg in
+    OpamFile.OPAM.write o (f (OpamFile.OPAM.read o)) in
+  let step = let i = ref 0 in
+    fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+  step "Install b (version 2)";
   OPAM.install opam_root b;
-  check_installed path ~roots:[ b-2 ] [ a-2; b-2 ];
-  (* Attempt to install b.1 (should fail because a is pinned to 2) *)
+  check_installed path ~roots:[ b-v 2 ] [ a-pinned; b-v 2 ];
+  step "Attempt to install b.1 (should fail because a is pinned to 2)";
   (try
     OPAM.install opam_root b ~version:(v 1);
     failwith "should fail"
    with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
-  check_installed path ~roots:[ b-2 ] [ a-2; b-2 ];
-  (* Cleanup *)
-  OPAM.remove opam_root ~auto:true (OpamPackage.Name.of_string "b");
+  check_installed path ~roots:[ b-v 2 ] [ a-pinned; b-v 2 ];
+  step "Cleanup";
+  OPAM.remove opam_root ~auto:true b;
+  (* OPAM.remove opam_root ~auto:true a; (\* BROKEN: remove-me *\) *)
   check_installed path [];
-  (* Change pinned version of a to 1 *)
-  OpamFile.OPAM.write (overlay a)
-    (OpamFile.OPAM.with_version (OpamFile.OPAM.read (overlay a)) (v 1));
-  (* Attempt to install b 2 *)
+  step "Change pinned version of a to 1";
+  map_overlay (fun o -> OpamFile.OPAM.with_version o (v 1)) a;
+  step "Attempt to install b 2";
   (try
     OPAM.install opam_root b ~version:(v 2);
     failwith "should fail"
    with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
   check_installed path [];
-  (* Install b, should get version 1 *)
+  step "Install b, should get version 1";
   OPAM.install opam_root b;
-  check_installed path ~roots:[ b-1 ] [ b-1; a-1 ];
-  (* Change pinned version of installed package a back to 2 *)
-  OpamFile.OPAM.write (overlay a)
-    (OpamFile.OPAM.with_version (OpamFile.OPAM.read (overlay a)) (v 2));
+  check_installed path ~roots:[ b-v 1 ] [ b-v 1; a-pinned ];
+  step "Change pinned version of installed package a back to 2";
+  map_overlay (fun o -> OpamFile.OPAM.with_version o (v 2)) a;
   OPAM.upgrade opam_root [];
-  check_installed path ~roots:[ b-2 ] [ b-2; a-2 ]
+  check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-pinned ]
 
 let test_repo_update path =
   run test_repo_update_u path
