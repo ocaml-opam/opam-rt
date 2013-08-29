@@ -4,66 +4,36 @@ TARGETS=src/opamRTmain.native src/file_server.native
 OPAMRT=./opam-rt
 TESTDIR=/tmp/xxx
 
-all:
+all: opam-rt
+
+.PHONY: opam-rt
+opam-rt:
 	$(BUILD) $(TARGETS)
 	ln -f _build/src/opamRTmain.native opam-rt
 	ln -f _build/src/file_server.native file-server
 
-repo-http:
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) repo-update --kind http
-	$(OPAMRT) run $(TESTDIR)  repo-update
+TESTS = $(shell $(OPAMRT) list)
+KINDS = local http git
+ALLTESTS = $(foreach test,$(TESTS),$(foreach kind,$(KINDS),$(test).$(kind)))
 
-repo-local:
+$(ALLTESTS): all
 	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) repo-update --kind local
-	$(OPAMRT) run $(TESTDIR)  repo-update
+	$(OPAMRT) init $(TESTDIR) $(basename $@) --kind $(@:$(basename $@).%=%)
+	$(OPAMRT) run  $(TESTDIR) $(basename $@)
 
-repo-git:
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) repo-update --kind git
-	$(OPAMRT) run $(TESTDIR)  repo-update
+.PHONY: $(TESTS)
+$(TESTS):
+	$(MAKE) $(foreach kind,$(KINDS),$@.$(kind))
 
-dev-local:
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) dev-update --kind local
-	$(OPAMRT) run $(TESTDIR)  dev-update
+.PHONY: $(KINDS)
+$(KINDS):
+	$(MAKE) $(foreach test,$(TESTS),$(test).$@)
 
-dev-git:
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) dev-update --kind git
-	$(OPAMRT) run $(TESTDIR)  dev-update
+dev-update.http pin-update.http pin-install.http:
+	@echo -e "############## $@: TODO ##############"
 
-pin-local:
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) pin-update --kind local
-	$(OPAMRT) run $(TESTDIR)  pin-update
-
-pin-git:
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) pin-update --kind git
-	$(OPAMRT) run $(TESTDIR)  pin-update
-
-pin-install-local:
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) pin-install --kind local
-	$(OPAMRT) run $(TESTDIR)  pin-install
-
-pin-install-git:
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) pin-install --kind git
-	$(OPAMRT) run $(TESTDIR)  pin-install
-
-run:
-	$(MAKE) repo-local
-	$(MAKE) repo-git
-	$(MAKE) repo-http
-	$(MAKE) dev-local
-	$(MAKE) dev-git
-	$(MAKE) pin-local
-	$(MAKE) pin-git
-	$(MAKE) pin-install-local
-	$(MAKE) pin-install-git
+.PHONY: run
+run: $(TESTS)
 
 clean:
 	rm -rf _build opam-rt file-server $(TESTDIR)
