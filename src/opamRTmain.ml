@@ -64,12 +64,7 @@ let term_info title ~doc ~man =
 
 let test_case =
   let doc = Arg.info ~docv:"TEST" ~doc:"Name of the test to run." [] in
-  let case = Arg.enum [
-      ("repo-update", `repo_update);
-      ("dev-update" , `dev_update);
-      ("pin-update" , `pin_update);
-      ("pin-install" , `pin_install);
-    ] in
+  let case = Arg.enum OpamRT.tests in
   Arg.(required & pos 1 (some case) None & doc)
 
 let seed_flag =
@@ -93,11 +88,8 @@ let init =
   let init global_options seed kind path test =
     apply_global_options global_options;
     set_seed seed;
-    match test with
-    | `repo_update -> OpamRT.init_repo_update kind path
-    | `dev_update  -> OpamRT.init_dev_update kind path
-    | `pin_update  -> OpamRT.init_pin_update kind path
-    | `pin_install -> OpamRT.init_pin_install kind path in
+    let module Test = (val test: OpamRT.TEST) in
+    Test.init kind path in
   Term.(pure init $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
@@ -115,13 +107,25 @@ let run =
   let run global_options seed kind path test =
     apply_global_options global_options;
     set_seed seed;
-    match test with
-    | `repo_update -> OpamRT.test_repo_update path
-    | `dev_update  -> OpamRT.test_dev_update path
-    | `pin_update  -> OpamRT.test_pin_update path
-    | `pin_install  -> OpamRT.test_pin_install path in
+    let module Test = (val test: OpamRT.TEST) in
+    Test.run path in
   Term.(pure run $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
+
+(* LIST *)
+let list_doc = "List available test suites."
+let list =
+  let doc = list_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P "The $(b,list) command lists the names of available test suites on \
+        standard output";
+  ] in
+  let list global_options =
+    print_endline (String.concat " " (List.map fst OpamRT.tests))
+  in
+  Term.(pure list $ global_options),
+  term_info "list" ~doc ~man
 
 let default =
   let doc = "Regression Testing Framework for OPAM" in
@@ -153,6 +157,7 @@ let default =
 let commands = [
   init;
   run;
+  list;
 ]
 
 let () =

@@ -146,6 +146,11 @@ let start_file_server repo =
     end
   | _ -> ()
 
+module type TEST = sig
+  val init: OpamTypes.repository_kind option -> OpamFilename.Dir.t -> unit
+  val run: OpamFilename.Dir.t -> unit
+end
+
 (* INIT *)
 
 let init_repo_update_u kind path =
@@ -208,18 +213,6 @@ let init_pin_install_u contents_kind path =
   OpamFilename.copy_dir ~src:(config.contents_root / "a.1") ~dst:pindir;
   OpamGlobals.msg "Pinning a ...\n";
   OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
-
-let init_repo_update kind path =
-  run (init_repo_update_u kind) path
-
-let init_dev_update kind path =
-  run (init_dev_update_u kind) path
-
-let init_pin_update kind path =
-  run (init_pin_update_u kind) path
-
-let init_pin_install kind path =
-  run (init_pin_install_u kind) path
 
 (* TEST RUNS *)
 
@@ -284,7 +277,7 @@ let test_dev_update_u path =
 
 
 let test_pin_install_u path =
-  log "test-base-update %s" (OpamFilename.Dir.to_string path);
+  log "test-pin-update %s" (OpamFilename.Dir.to_string path);
   let { repo; opam_root; contents_root } = read_config path in
   let b = OpamPackage.Name.of_string "b" in
   let a = OpamPackage.Name.of_string "a" in
@@ -309,7 +302,6 @@ let test_pin_install_u path =
   check_installed path ~roots:[ b-v 2 ] [ a-pinned; b-v 2 ];
   step "Cleanup";
   OPAM.remove opam_root ~auto:true b;
-  (* OPAM.remove opam_root ~auto:true a; (\* BROKEN: remove-me *\) *)
   check_installed path [];
   step "Change pinned version of a to 1";
   map_overlay (fun o -> OpamFile.OPAM.with_version o (v 1)) a;
@@ -327,14 +319,30 @@ let test_pin_install_u path =
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-pinned ]
 
-let test_repo_update path =
-  run test_repo_update_u path
 
-let test_dev_update path =
-  run test_dev_update_u path
+module Repo_update : TEST = struct
+  let init kind = run (init_repo_update_u kind)
+  let run = run test_repo_update_u
+end
 
-let test_pin_update path =
-  run test_dev_update_u path
+module Dev_update : TEST = struct
+  let init kind = run (init_dev_update_u kind)
+  let run = run test_dev_update_u
+end
 
-let test_pin_install path =
-  run test_pin_install_u path
+module Pin_update : TEST = struct
+  let init kind = run (init_pin_update_u kind)
+  let run = run test_dev_update_u
+end
+
+module Pin_install : TEST = struct
+  let init kind = run (init_pin_install_u kind)
+  let run = run test_pin_install_u
+end
+
+let tests = [
+  "repo-update", (module Repo_update : TEST);
+  "dev-update",  (module Dev_update  : TEST);
+  "pin-update",  (module Pin_update  : TEST);
+  "pin-install", (module Pin_install : TEST);
+]
