@@ -96,14 +96,14 @@ let read_installed path =
         (OpamPath.Switch.installed_roots opam_root OpamSwitch.default);
   }
 
-let check_installed path  ?(roots = []) installed_list =
-  let { installed; installed_roots } = read_installed path in
-  let wished_installed = OpamPackage.Set.of_list installed_list in
+let check_installed path  ?(roots = []) wished_list =
+  let wished_installed = OpamPackage.Set.of_list wished_list in
   let wished_roots = OpamPackage.Set.of_list roots in
+  let { installed; installed_roots } = read_installed path in
   let pkg_list roots list =
     (String.concat " "
        (List.map (fun nv ->
-            if OpamPackage.Set.mem nv installed_roots
+            if OpamPackage.Set.mem nv roots
             then "\027[4m" ^ OpamPackage.to_string nv ^ "\027[m"
             else OpamPackage.to_string nv)
            list))
@@ -113,12 +113,12 @@ let check_installed path  ?(roots = []) installed_list =
   then
     OpamGlobals.msg "%a installed: %s\n"
       (fun () -> Color.green "%s") "[OK]"
-      (pkg_list installed_roots installed_list)
+      (pkg_list installed_roots wished_list)
   else
     (OpamGlobals.msg "%a installed: %s\n       expecting: %s\n"
        (fun () -> Color.red "%s") "[FAIL]"
        (pkg_list installed_roots (OpamPackage.Set.elements installed))
-       (pkg_list wished_roots installed_list);
+       (pkg_list wished_roots wished_list);
      failwith "Installed packages don't match expectations")
 
 let update_server_index repo =
@@ -213,6 +213,31 @@ let init_pin_install_u contents_kind path =
   OpamFilename.copy_dir ~src:(config.contents_root / "a.1") ~dst:pindir;
   OpamGlobals.msg "Pinning a ...\n";
   OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
+
+let init_reinstall_u contents_kind path =
+  log "init-pin-install";
+  let { repo; opam_root; contents_root } = create_config (Some `local)  path in
+  OpamGlobals.msg
+    "Creating a new repository in %s/ ...\n"
+    (OpamFilename.Dir.to_string repo.repo_root);
+  OpamRTinit.create_simple_repo repo contents_root contents_kind;
+  let packages =
+    let a = OpamRTinit.package "a" 1 (Some `local) contents_root 450 in
+    let b = Packages.add_depend_with_runtime_checks opam_root
+        (OpamRTinit.package "b" 1 (Some `local) contents_root 451)
+        "a" in
+    let c = Packages.add_depend_with_runtime_checks opam_root
+        (OpamRTinit.package "c" 1 (Some `local) contents_root 452)
+        "b" in
+    let d = Packages.add_depend_with_runtime_checks opam_root
+        (OpamRTinit.package "d" 1 (Some `local) contents_root 453)
+        "c" in
+    [ a; b; c; d ]
+  in
+  List.iter (Packages.add repo contents_root) packages;
+  OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+  OPAM.init opam_root repo;
+  OPAM.update opam_root
 
 (* TEST RUNS *)
 
@@ -319,6 +344,44 @@ let test_pin_install_u path =
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-pinned ]
 
+let test_reinstall_u path =
+  let { repo; opam_root; contents_root } = read_config path in
+  let a = OpamPackage.Name.of_string "a" in
+  let b = OpamPackage.Name.of_string "b" in
+  let c = OpamPackage.Name.of_string "c" in
+  let d = OpamPackage.Name.of_string "d" in
+  let pkg name = OpamPackage.create name (OpamPackage.Version.of_string "1") in
+  let step = let i = ref 0 in
+    fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+  step "Install d";
+  OPAM.install opam_root d;
+  check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
+  step "Reinstall b";
+  OPAM.reinstall opam_root b;
+  check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
+  step "Install d";
+  OPAM.install opam_root d;
+  check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
+  step "Remove b";
+  OPAM.remove opam_root b;
+  check_installed path ~roots:[] (List.map pkg [a]);
+  step "Install d";
+  OPAM.install opam_root d;
+  check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
+  step "Remove b from upstream and update";
+  OpamSystem.remove_dir (OpamFilename.Dir.to_string (path / "repo" / "packages" / "b.1"));
+  OPAM.update opam_root;
+  check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
+  (* XXX: what to do if attempting to reinstall 'a' here ? What about 'c' or 'd' ? *)
+  step "Upgrade";
+  OPAM.upgrade opam_root [];
+  check_installed path ~roots:[] (List.map pkg [a]);
+  step "Attempt to reinstall d";
+  (try
+    OPAM.install opam_root d;
+    failwith "should fail"
+   with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
+  ()
 
 module Repo_update : TEST = struct
   let init kind = run (init_repo_update_u kind)
@@ -340,9 +403,15 @@ module Pin_install : TEST = struct
   let run = run test_pin_install_u
 end
 
+module Reinstall : TEST = struct
+  let init kind = run (init_reinstall_u kind)
+  let run = run test_reinstall_u
+end
+
 let tests = [
   "repo-update", (module Repo_update : TEST);
   "dev-update",  (module Dev_update  : TEST);
   "pin-update",  (module Pin_update  : TEST);
   "pin-install", (module Pin_install : TEST);
+  "reinstall",   (module Reinstall   : TEST);
 ]
