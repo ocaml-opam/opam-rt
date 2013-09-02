@@ -31,6 +31,7 @@ let help_sections = [
 
   `S "AUTHOR";
   `P "Thomas Gazagnaire   <thomas.gazagnaire@ocamlpro.com>"; `Noblank;
+  `P "Louis Gesbert       <louis.gesbert@ocamlpro.com>"; `Noblank;
 ]
 
 (* HELP *)
