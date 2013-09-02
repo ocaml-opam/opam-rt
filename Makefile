@@ -16,10 +16,8 @@ opam-rt:
 run: opam-rt
 	@for kind in $(KINDS); do \
 	  for test in $(shell $(OPAMRT) list); do \
-	    rm -rf $(TESTDIR) && \
 	    ( echo "TEST:" $$test-$$kind && \
-	      $(OPAMRT) init $(TESTDIR) $$test --kind $$kind && \
-	      $(OPAMRT) run  $(TESTDIR) $$test --kind $$kind ) \
+	      $(OPAMRT) test $(TESTDIR) $$test --kind $$kind --yes ) \
 	    || exit; \
 	  done; \
 	done

@@ -113,6 +113,29 @@ let run =
   Term.(pure run $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 
+(* TEST *)
+let test_doc = "Init and run a given test suite."
+let test =
+  let doc = test_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P "The $(b,test) command inits and runs the given opam-rt test suite."
+  ] in
+  let path =
+    let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
+    Arg.(required & pos 0 (some dirname) None & doc) in
+  let test global_options seed kind path test =
+    apply_global_options global_options;
+    set_seed seed;
+    let module Test = (val test: OpamRT.TEST) in
+    if OpamFilename.exists_dir path
+    && OpamState.confirm "Do you want to remove %s ?" (OpamFilename.Dir.to_string path)
+    then OpamFilename.rmdir path;
+    Test.init kind path;
+    Test.run kind path in
+  Term.(pure test $global_options $seed_flag $repo_kind_flag $path $test_case),
+  term_info "test" ~doc ~man
+
 (* LIST *)
 let list_doc = "List available test suites."
 let list =
@@ -145,9 +168,10 @@ let default =
        The most commonly used opam commands are:\n\
       \    init         %s\n\
       \    run          %s\n\
+      \    test         %s\n\
        \n\
        See 'opam-rt help <command>' for more information on a specific command.\n"
-      init_doc run_doc in
+      init_doc run_doc test_doc in
   Term.(pure usage $global_options),
   Term.info "opam-rt"
     ~version
@@ -159,6 +183,7 @@ let commands = [
   init;
   run;
   list;
+  test;
 ]
 
 let () =

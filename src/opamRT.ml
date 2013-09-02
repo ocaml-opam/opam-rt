@@ -25,9 +25,10 @@ let ok () =
   OpamGlobals.msg "%s\n%!" (Color.green "[SUCCESS]")
 
 let error e =
-  OpamGlobals.msg "%s\n%s\n%!"
+  OpamGlobals.msg "%s\n%s %s\n%!"
     (Printexc.to_string e)
-    (Color.red "[ERROR]");
+    (Color.red "[ERROR]")
+    (String.concat " " (Array.to_list Sys.argv));
   exit 1
 
 let newline () =
@@ -385,7 +386,7 @@ let test_reinstall_u path =
   ()
 
 let todo () =
-  OpamGlobals.msg "%s\n" (Color.yellow "TODO");
+  OpamGlobals.msg "%s\n" (Color.yellow "[TODO]");
   exit 0
 
 let check_and_run kind fn =
