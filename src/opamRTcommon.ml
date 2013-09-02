@@ -197,6 +197,18 @@ module Packages = struct
          Atom (OpamPackage.Name.of_string name, formula)) in
     { t with opam = OPAM.with_depends t.opam depends }
 
+  let add_depend_with_runtime_checks opam_root t ?formula name =
+    let t = add_depend t ?formula name in
+    let (/) = Filename.concat in
+    let check_cmd =
+      let l = [ "test"; "-d"; (OpamFilename.Dir.to_string opam_root/"system"/"lib"/name) ] in
+      List.map (fun s -> CString s, None) l, None
+    in
+    let opam = t.opam in
+    let opam = OpamFile.OPAM.with_build opam (OpamFile.OPAM.build opam @ [check_cmd]) in
+    let opam = OpamFile.OPAM.with_remove opam (OpamFile.OPAM.remove opam @ [check_cmd]) in
+    { t with opam }
+
   let url kind path = function
     | 0 -> None
     | i ->
@@ -366,6 +378,13 @@ module OPAM = struct
 
   let install opam_root ?version name =
     opam opam_root "install" [
+      match version with
+      | None -> OpamPackage.Name.to_string name
+      | Some v -> OpamPackage.to_string (OpamPackage.create name v)
+    ]
+
+  let reinstall opam_root ?version name =
+    opam opam_root "reinstall" [
       match version with
       | None -> OpamPackage.Name.to_string name
       | Some v -> OpamPackage.to_string (OpamPackage.create name v)
