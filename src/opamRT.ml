@@ -148,7 +148,7 @@ let start_file_server repo =
 
 module type TEST = sig
   val init: OpamTypes.repository_kind option -> OpamFilename.Dir.t -> unit
-  val run: OpamFilename.Dir.t -> unit
+  val run: OpamTypes.repository_kind option -> OpamFilename.Dir.t -> unit
 end
 
 (* INIT *)
@@ -383,29 +383,38 @@ let test_reinstall_u path =
    with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
   ()
 
+let todo () =
+  OpamGlobals.msg "%s\n" (Color.yellow "TODO");
+  exit 0
+
+let check_and_run kind fn =
+  match kind with
+  | Some `http -> todo ()
+  | _          -> run fn
+
 module Repo_update : TEST = struct
   let init kind = run (init_repo_update_u kind)
-  let run = run test_repo_update_u
+  let run kind = run test_repo_update_u
 end
 
 module Dev_update : TEST = struct
-  let init kind = run (init_dev_update_u kind)
-  let run = run test_dev_update_u
+  let init kind = check_and_run kind (init_dev_update_u kind)
+  let run  kind = check_and_run kind test_dev_update_u
 end
 
 module Pin_update : TEST = struct
-  let init kind = run (init_pin_update_u kind)
-  let run = run test_dev_update_u
+  let init kind = check_and_run kind (init_pin_update_u kind)
+  let run  kind = check_and_run kind test_dev_update_u
 end
 
 module Pin_install : TEST = struct
-  let init kind = run (init_pin_install_u kind)
-  let run = run test_pin_install_u
+  let init kind = check_and_run kind (init_pin_install_u kind)
+  let run  kind = check_and_run kind test_pin_install_u
 end
 
 module Reinstall : TEST = struct
-  let init kind = run (init_reinstall_u kind)
-  let run = run test_reinstall_u
+  let init kind = check_and_run kind (init_reinstall_u kind)
+  let run  kind = check_and_run kind test_reinstall_u
 end
 
 let tests = [

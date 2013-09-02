@@ -109,7 +109,7 @@ let run =
     apply_global_options global_options;
     set_seed seed;
     let module Test = (val test: OpamRT.TEST) in
-    Test.run path in
+    Test.run kind path in
   Term.(pure run $global_options $seed_flag $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 

@@ -2,37 +2,27 @@ BUILD=ocamlbuild -use-ocamlfind -pkgs opam.client,cohttp.lwt -no-links -cflags -
 TARGETS=src/opamRTmain.native src/file_server.native
 OPAMRT=./opam-rt
 TESTDIR=/tmp/xxx
+KINDS = local http git
+
+.PHONY: all opam-rt run
 
 all: opam-rt
 
-.PHONY: opam-rt
 opam-rt:
 	$(BUILD) $(TARGETS)
 	ln -f _build/src/opamRTmain.native opam-rt
 	ln -f _build/src/file_server.native file-server
 
-TESTS = $(shell $(OPAMRT) list)
-KINDS = local http git
-ALLTESTS = $(foreach test,$(TESTS),$(foreach kind,$(KINDS),$(test).$(kind)))
-
-$(ALLTESTS): all
-	rm -rf $(TESTDIR)
-	$(OPAMRT) init $(TESTDIR) $(basename $@) --kind $(@:$(basename $@).%=%)
-	$(OPAMRT) run  $(TESTDIR) $(basename $@)
-
-.PHONY: $(TESTS)
-$(TESTS):
-	$(MAKE) $(foreach kind,$(KINDS),$@.$(kind))
-
-.PHONY: $(KINDS)
-$(KINDS):
-	$(MAKE) $(foreach test,$(TESTS),$(test).$@)
-
-dev-update.http pin-update.http pin-install.http reinstall.http:
-	@echo -e "############## $@: TODO ##############"
-
-.PHONY: run
-run: $(TESTS)
+run: opam-rt
+	@for kind in $(KINDS); do \
+	  for test in $(shell $(OPAMRT) list); do \
+	    rm -rf $(TESTDIR) && \
+	    ( echo "TEST:" $$test-$$kind && \
+	      $(OPAMRT) init $(TESTDIR) $$test --kind $$kind && \
+	      $(OPAMRT) run  $(TESTDIR) $$test --kind $$kind ) \
+	    || exit; \
+	  done; \
+	done
 
 clean:
 	rm -rf _build opam-rt file-server $(TESTDIR)
