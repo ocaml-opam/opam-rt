@@ -166,6 +166,7 @@ let init_repo_update_u kind path =
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
   OPAM.init opam_root repo;
+  OPAM.install opam_root (OpamPackage.Name.of_string "a.1");
   stop_file_server repo
 
 let init_dev_update_u contents_kind path =

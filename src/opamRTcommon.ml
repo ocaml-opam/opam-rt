@@ -479,13 +479,33 @@ module Check = struct
     (* metadata *)
     let r = OpamPath.Repository.packages_dir repo in
     let o = OpamPath.packages_dir root in
+    let installed =
+      let file = OpamPath.Switch.installed root OpamSwitch.default in
+      OpamFile.Installed.safe_read file in
     let filter file =
-      Some (OpamFilename.dirname_dir (OpamFilename.dirname file)) in
+      let rec aux dirname basename =
+        match OpamPackage.of_string_opt (OpamFilename.Base.to_string basename) with
+        | None ->
+          let basename = OpamFilename.basename_dir dirname in
+          let dirname = OpamFilename.dirname_dir dirname in
+          aux dirname basename
+        | Some nv -> dirname, nv in
+      let dirname, nv = aux (OpamFilename.dirname file) (OpamFilename.basename file) in
+      if OpamPackage.Set.mem nv installed then Some dirname
+      else None in
     check_dirs ~filter ("repo", r) ("opam", o);
     (* archives *)
     let r = OpamPath.Repository.archives_dir repo in
     let o = OpamPath.archives_dir root in
-    check_dirs ("repo", r) ("opam", o)
+    let filter file =
+      let nv =
+        let base = OpamFilename.Base.to_string (OpamFilename.basename file) in
+        match OpamMisc.cut_at base '+' with
+        | None        -> assert false
+        | Some (nv,_) -> OpamPackage.of_string nv in
+      if OpamPackage.Set.mem nv installed then Some (OpamFilename.dirname file)
+      else None in
+    check_dirs ~filter ("repo", r) ("opam", o)
 
   let files_dir opam_root nv =
     let pin = OpamPackage.pinned (OpamPackage.name nv) in
