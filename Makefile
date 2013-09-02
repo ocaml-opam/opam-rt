@@ -1,6 +1,5 @@
-BUILD=ocamlbuild -use-ocamlfind -pkgs opam.client,cohttp.lwt -no-links
+BUILD=ocamlbuild -use-ocamlfind -pkgs opam.client,cohttp.lwt -no-links -cflags -bin-annot
 TARGETS=src/opamRTmain.native src/file_server.native
-
 OPAMRT=./opam-rt
 TESTDIR=/tmp/xxx
 
@@ -29,7 +28,7 @@ $(TESTS):
 $(KINDS):
 	$(MAKE) $(foreach test,$(TESTS),$(test).$@)
 
-dev-update.http pin-update.http pin-install.http:
+dev-update.http pin-update.http pin-install.http reinstall.http:
 	@echo -e "############## $@: TODO ##############"
 
 .PHONY: run
