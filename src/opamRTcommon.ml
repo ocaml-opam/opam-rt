@@ -475,7 +475,23 @@ module Check = struct
     let a2 = attributes ?filter d2 in
     check_attributes (n1, a1) (n2, a2)
 
+  let check_invariants root =
+    let installed =
+      let file = OpamPath.Switch.installed root OpamSwitch.default in
+      OpamFile.Installed.safe_read file in
+    let package_index =
+      let file = OpamPath.package_index root in
+      OpamFile.Package_index.safe_read file in
+    OpamPackage.Set.iter (fun nv ->
+        let file = OpamPath.opam root nv in
+        if not (OpamFilename.exists file) && OpamPackage.Map.mem nv package_index then
+          OpamGlobals.error_and_exit
+            "fatal: %s is missing" (OpamFilename.prettify file)
+      ) installed
+
   let packages repo root =
+    (* invariants *)
+    check_invariants root;
     (* metadata *)
     let r = OpamPath.Repository.packages_dir repo in
     let o = OpamPath.packages_dir root in
