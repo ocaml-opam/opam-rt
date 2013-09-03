@@ -475,10 +475,28 @@ module Check = struct
     let a2 = attributes ?filter d2 in
     check_attributes (n1, a1) (n2, a2)
 
+  let installed root =
+    let file = OpamPath.Switch.installed root OpamSwitch.default in
+    OpamFile.Installed.safe_read file
+
+  let package_of_filename file =
+    let rec aux dirname basename =
+      match OpamPackage.of_string_opt (OpamFilename.Base.to_string basename) with
+      | None ->
+        let basename = OpamFilename.basename_dir dirname in
+        let dirname = OpamFilename.dirname_dir dirname in
+        aux dirname basename
+      | Some nv -> dirname, nv in
+    aux (OpamFilename.dirname file) (OpamFilename.basename file)
+
+  let package_of_archivename file =
+    let base = OpamFilename.Base.to_string (OpamFilename.basename file) in
+    match OpamMisc.cut_at base '+' with
+    | None        -> assert false
+    | Some (nv,_) -> OpamPackage.of_string nv
+
   let check_invariants root =
-    let installed =
-      let file = OpamPath.Switch.installed root OpamSwitch.default in
-      OpamFile.Installed.safe_read file in
+    let installed = installed root in
     let package_index =
       let file = OpamPath.package_index root in
       OpamFile.Package_index.safe_read file in
@@ -495,18 +513,12 @@ module Check = struct
     (* metadata *)
     let r = OpamPath.Repository.packages_dir repo in
     let o = OpamPath.packages_dir root in
-    let installed =
-      let file = OpamPath.Switch.installed root OpamSwitch.default in
-      OpamFile.Installed.safe_read file in
+    let installed = installed root in
+    if OpamPackage.Set.is_empty installed then
+      OpamGlobals.error_and_exit
+        "No package are installed. Tests are meaningless, stopping.";
     let filter file =
-      let rec aux dirname basename =
-        match OpamPackage.of_string_opt (OpamFilename.Base.to_string basename) with
-        | None ->
-          let basename = OpamFilename.basename_dir dirname in
-          let dirname = OpamFilename.dirname_dir dirname in
-          aux dirname basename
-        | Some nv -> dirname, nv in
-      let dirname, nv = aux (OpamFilename.dirname file) (OpamFilename.basename file) in
+      let dirname, nv = package_of_filename file in
       if OpamPackage.Set.mem nv installed then Some dirname
       else None in
     check_dirs ~filter ("repo", r) ("opam", o);
@@ -514,11 +526,7 @@ module Check = struct
     let r = OpamPath.Repository.archives_dir repo in
     let o = OpamPath.archives_dir root in
     let filter file =
-      let nv =
-        let base = OpamFilename.Base.to_string (OpamFilename.basename file) in
-        match OpamMisc.cut_at base '+' with
-        | None        -> assert false
-        | Some (nv,_) -> OpamPackage.of_string nv in
+      let nv = package_of_archivename file in
       if OpamPackage.Set.mem nv installed then Some (OpamFilename.dirname file)
       else None in
     check_dirs ~filter ("repo", r) ("opam", o)
