@@ -352,7 +352,9 @@ let test_reinstall_u path =
   let b = OpamPackage.Name.of_string "b" in
   let c = OpamPackage.Name.of_string "c" in
   let d = OpamPackage.Name.of_string "d" in
-  let pkg name = OpamPackage.create name (OpamPackage.Version.of_string "1") in
+  let v version = OpamPackage.Version.of_string (string_of_int version) in
+  let (-) = OpamPackage.create in
+  let pkg name = name - v 1 in
   let step = let i = ref 0 in
     fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
   step "Install d";
@@ -374,7 +376,6 @@ let test_reinstall_u path =
   OpamSystem.remove_dir (OpamFilename.Dir.to_string (path / "repo" / "packages" / "b.1"));
   OPAM.update opam_root;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
-  (* XXX: what to do if attempting to reinstall 'a' here ? What about 'c' or 'd' ? *)
   step "Upgrade";
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[] (List.map pkg [a]);
@@ -383,6 +384,35 @@ let test_reinstall_u path =
     OPAM.install opam_root d;
     failwith "should fail"
    with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
+  step "Revert to the state with all packages installed and b removed upstream";
+  let b1 = Packages.add_depend_with_runtime_checks opam_root
+      (OpamRTinit.package "b" 1 (Some `local) contents_root 451)
+      "a" in
+  Packages.add repo contents_root b1;
+  OPAM.update opam_root;
+  OPAM.install opam_root d;
+  OpamSystem.remove_dir (OpamFilename.Dir.to_string (path / "repo" / "packages" / "b.1"));
+  OPAM.update opam_root;
+  check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
+  step "Reinstall c";
+  OPAM.reinstall opam_root c;
+  check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
+  step "Add a new version of c, then upgrade";
+  let c2 = Packages.add_depend_with_runtime_checks opam_root
+      (OpamRTinit.package "c" 2 (Some `local) contents_root 552)
+      "b" in
+  Packages.add repo contents_root c2;
+  OPAM.update opam_root;
+  OPAM.upgrade opam_root [pkg c];
+  check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
+  step "Try to reinstall b";
+  (try
+    OPAM.reinstall opam_root b;
+    failwith "should fail"
+   with OpamSystem.Process_error {OpamProcess.r_code = 66} -> ());
+  step "Try to reinstall a";
+  OPAM.reinstall opam_root a;
+  check_installed path ~roots:[] [a-v 1];
   ()
 
 let todo () =
