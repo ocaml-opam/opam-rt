@@ -413,6 +413,20 @@ let test_reinstall_u path =
   step "Try to reinstall a";
   OPAM.reinstall opam_root a;
   check_installed path ~roots:[] [a-v 1];
+  step "Add a new version of a and upgrade";
+  let a2 = OpamRTinit.package "a" 2 (Some `local) contents_root 452 in
+  Packages.add repo contents_root a2;
+  OPAM.update opam_root;
+  OPAM.upgrade opam_root [];
+  check_installed path ~roots:[] [a-v 2];
+  step "Remove that new version of a and upgrade";
+  OpamSystem.remove_dir (OpamFilename.Dir.to_string (path / "repo" / "packages" / "prefix-a" / "a.2" ));
+  OPAM.update opam_root;
+  OPAM.upgrade opam_root [];
+  check_installed path ~roots:[] [a-v 1];
+  step "Upgrade again";
+  OPAM.upgrade opam_root [];
+  check_installed path ~roots:[] [a-v 1];
   ()
 
 let todo () =
