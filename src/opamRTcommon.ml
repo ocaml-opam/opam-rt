@@ -74,6 +74,18 @@ module Git = struct
           OpamGlobals.error_and_exit "Cannot commit %s" (OpamFilename.to_string file);
       ) fmt
 
+  let commit_dir repo dir fmt =
+    Printf.kprintf (fun msg ->
+        if OpamFilename.exists_dir dir then
+          let dir =
+            OpamMisc.remove_prefix ~prefix:(OpamFilename.to_string (repo//""))
+              (OpamFilename.Dir.to_string dir) in
+          exec repo [ "git"; "add"; dir ];
+          exec repo [ "git"; "commit"; "-m"; msg; dir; "--allow-empty" ];
+        else
+          OpamGlobals.error_and_exit "Cannot commit %s" (OpamFilename.Dir.to_string dir);
+      ) fmt
+
   let revision repo =
     return_one_line repo [ "git"; "rev-parse"; "HEAD" ]
 
@@ -188,7 +200,7 @@ module Packages = struct
   let opam nv seed =
     let opam = OPAM.create nv in
     let maintainer = "test-" ^ string_of_int seed in
-    OPAM.with_maintainer opam maintainer
+    OPAM.with_maintainer opam [maintainer]
 
   let add_depend t ?(formula=OpamFormula.Empty) name =
     let depends =
@@ -327,8 +339,7 @@ module Packages = struct
     if OpamFilename.exists_dir files then (
       let all = OpamFilename.rec_files files in
       List.iter (Git.add repo.repo_root) all;
-      Git.commit_file repo.repo_root
-        (OpamFilename.of_string (OpamFilename.Dir.to_string files))
+      Git.commit_dir repo.repo_root files
         "Adding files/* for package %s" (OpamPackage.to_string t.nv);
       let commit = Git.revision repo.repo_root in
       Git.msg repo.repo_root commit t.nv "Add %s" (OpamFilename.Dir.to_string files)
