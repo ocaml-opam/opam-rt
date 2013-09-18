@@ -405,14 +405,12 @@ let test_reinstall_u path =
   OPAM.update opam_root;
   OPAM.upgrade opam_root [pkg c];
   check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
-  step "Try to reinstall b";
-  (try
-    OPAM.reinstall opam_root b;
-    failwith "should fail"
-   with OpamSystem.Process_error {OpamProcess.r_code = 66} -> ());
+  step "Try to reinstall b (should work using the cache)";
+  OPAM.reinstall opam_root b;
+  check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
   step "Try to reinstall a";
   OPAM.reinstall opam_root a;
-  check_installed path ~roots:[] [a-v 1];
+  check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
   step "Add a new version of a and upgrade";
   let a2 = OpamRTinit.package "a" 2 (Some `local) contents_root 452 in
   Packages.add repo contents_root a2;
