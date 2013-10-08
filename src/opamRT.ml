@@ -344,7 +344,25 @@ let test_pin_install_u path =
   step "Change pinned version of installed package a back to 2";
   map_overlay (fun o -> OpamFile.OPAM.with_version o (v 2)) a;
   OPAM.upgrade opam_root [];
-  check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-pinned ]
+  check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-pinned ];
+  (* -- *)
+  step "Remove all, unpin a, add a new version of a and update";
+  OPAM.remove opam_root a;
+  OPAM.unpin opam_root a;
+  let a3 = OpamRTinit.package "a" 3 (Some `local) contents_root 452 in
+  Packages.add repo contents_root a3;
+  OPAM.update opam_root;
+  check_installed path [];
+  step "Pin a to version 2 and install";
+  OPAM.vpin opam_root a (v 2);
+  OPAM.install opam_root a;
+  check_installed path ~roots:[a-pinned] [a-pinned];
+  step "Unpin a";
+  OPAM.unpin opam_root a;
+  check_installed path ~roots:[a-v 2] [a-v 2];
+  step "Upgrade";
+  OPAM.upgrade opam_root [];
+  check_installed path ~roots:[a-v 3] [a-v 3]
 
 let test_reinstall_u path =
   let { repo; opam_root; contents_root } = read_config path in
