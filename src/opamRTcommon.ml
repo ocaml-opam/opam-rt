@@ -545,7 +545,9 @@ module Check = struct
     let o = OpamPath.archives_dir root in
     let filter file =
       let nv = package_of_archivename file in
-      if OpamPackage.Set.mem nv installed then Some (OpamFilename.dirname file)
+      if OpamPackage.Set.mem nv installed
+      && OpamFilename.exists (OpamPath.archive root nv) then
+        Some (OpamFilename.dirname file)
       else None in
     check_dirs ~filter ("repo", r) ("opam", o)
 
