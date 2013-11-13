@@ -10,9 +10,10 @@ and written in a real programming language).
 
 ### Status
 
-This is work-in-progress, mainly dedicated to test the new [opam
-update strategy](https://github.com/OCamlPro/opam/pull/719). As
-it is still the early days, the API will certainly evolve quite
-quickly.
+`opam-rt` currently test mainly two areas of OPAM:
 
-Any external contribution, as testing ideas or pull request, is most than welcome.
+* pinned packages
+* development packages
+
+Any external contribution, as testing ideas or pull requests are most
+ than welcome.
