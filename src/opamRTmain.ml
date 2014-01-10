@@ -75,6 +75,13 @@ let seed_flag =
 let set_seed seed =
   OpamRTcommon.set_seed seed
 
+let data_dir =
+  let doc = "Set the directory where the data for the some tests can be found" in
+  Arg.(value & opt dir "data" & info ~doc ["--data"])
+
+let apply_data_dir data_dir =
+  OpamRTcommon.datadir := OpamFilename.Dir.of_string data_dir
+
 (* INIT *)
 let init_doc = "Initialize an opam-rt instance."
 let init =
@@ -86,12 +93,13 @@ let init =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some dirname) None & doc) in
-  let init global_options seed kind path test =
+  let init global_options seed data kind path test =
     apply_global_options global_options;
     set_seed seed;
+    apply_data_dir data;
     let module Test = (val test: OpamRT.TEST) in
     Test.init kind path in
-  Term.(pure init $global_options $seed_flag $repo_kind_flag $path $test_case),
+  Term.(pure init $global_options $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
 (* RUN *)
@@ -105,12 +113,13 @@ let run =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some dirname) None & doc) in
-  let run global_options seed kind path test =
+  let run global_options seed data kind path test =
     apply_global_options global_options;
     set_seed seed;
+    apply_data_dir data;
     let module Test = (val test: OpamRT.TEST) in
     Test.run kind path in
-  Term.(pure run $global_options $seed_flag $repo_kind_flag $path $test_case),
+  Term.(pure run $global_options $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 
 (* TEST *)
@@ -124,8 +133,9 @@ let test =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some dirname) None & doc) in
-  let test global_options seed kind path test =
+  let test global_options seed data kind path test =
     apply_global_options global_options;
+    apply_data_dir data;
     set_seed seed;
     let module Test = (val test: OpamRT.TEST) in
     if OpamFilename.exists_dir path
@@ -133,7 +143,7 @@ let test =
     then OpamFilename.rmdir path;
     Test.init kind path;
     Test.run kind path in
-  Term.(pure test $global_options $seed_flag $repo_kind_flag $path $test_case),
+  Term.(pure test $global_options $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "test" ~doc ~man
 
 (* LIST *)
