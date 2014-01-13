@@ -479,10 +479,59 @@ module Reinstall : TEST = struct
   let run  kind = check_and_run kind test_reinstall_u
 end
 
+module Big_upgrade : TEST = struct
+  let init kind path =
+    log "init-big-upgrade %s\n" (OpamFilename.Dir.to_string path);
+    let { repo; opam_root; contents_root } = create_config kind path in
+    OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+    OpamGlobals.msg
+      "Creating a new repository in %s/ ...\n"
+      (OpamFilename.Dir.to_string repo.repo_root);
+    OpamFilename.mkdir repo.repo_root;
+    OpamSystem.in_dir (OpamFilename.Dir.to_string repo.repo_root) (fun () ->
+        OpamSystem.command
+          ["tar"; "xzf"; OpamFilename.to_string (data "repo_packages.tar.gz")]);
+    start_file_server repo;
+    OpamGlobals.msg
+      "Initializing an OPAM instance in %s/ ...\n"
+      (OpamFilename.Dir.to_string opam_root);
+    OPAM.init opam_root repo;
+    OPAM.import opam_root ~fake:true (data "init.export");
+    stop_file_server repo
+
+  let check_export opam_root reference =
+    let exportfile = OpamFilename.of_string (OpamSystem.temp_file "opam-rt-export") in
+    OPAM.export opam_root exportfile;
+    let ret =
+      OpamProcess.run "diff"
+        (List.map OpamFilename.to_string [reference; exportfile]) in
+    if ret.OpamProcess.r_code = 0 then
+      (OpamGlobals.msg "%a Export files matches reference\n"
+         (fun () -> Color.green "%s") "[OK]")
+    else
+      (OpamGlobals.msg "%a Export file differs from %s\n"
+         (fun () -> Color.red "%s") "[FAIL]"
+         (OpamFilename.to_string reference);
+       failwith "Installed packages don't match expectations")
+
+  let run kind path =
+    log "test-big-upgrade %s" (OpamFilename.Dir.to_string path);
+    let { repo; opam_root; contents_root } = read_config path in
+    let step = let i = ref 0 in
+      fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    step "update";
+    OPAM.update opam_root;
+    check_export opam_root (data "init.export");
+    step "upgrade";
+    OPAM.upgrade opam_root ~fake:true [];
+    check_export opam_root (data "expected.export")
+end
+
 let tests = [
   "repo-update", (module Repo_update : TEST);
   "dev-update",  (module Dev_update  : TEST);
   "pin-update",  (module Pin_update  : TEST);
   "pin-install", (module Pin_install : TEST);
   "reinstall",   (module Reinstall   : TEST);
+  "big-upgrade", (module Big_upgrade : TEST);
 ]

@@ -26,6 +26,10 @@ let set_seed seed =
 let seed () =
   !seed_ref
 
+let datadir = ref (OpamFilename.Dir.of_string "data")
+
+let data s = OpamFilename.create !datadir (OpamFilename.Base.of_string s)
+
 module Color = struct
 
   let red fmt =
@@ -367,7 +371,7 @@ let read_url opam_root nv =
 
 module OPAM = struct
 
-  let opam opam_root command args =
+  let opam ?(fake=false) opam_root command args =
     OpamGlobals.msg "%s\n" (Color.blue ">> opam %s %s " command (String.concat " " args));
     let debug = if !OpamGlobals.debug then ["--debug"] else [] in
     OpamSystem.command
@@ -375,6 +379,7 @@ module OPAM = struct
          "--yes" ::
          ["--root"; (OpamFilename.Dir.to_string opam_root)]
          @ debug
+         @ (if fake then ["--fake"] else [])
          @ args)
 
   let init opam_root repo =
@@ -409,8 +414,8 @@ module OPAM = struct
   let update opam_root =
     opam opam_root "update" ["--sync-archives"]
 
-  let upgrade opam_root packages =
-    opam opam_root "upgrade" (List.map OpamPackage.to_string packages)
+  let upgrade opam_root ?fake packages =
+    opam opam_root ?fake "upgrade" (List.map OpamPackage.to_string packages)
 
   let pin opam_root name path =
     opam opam_root "pin"
@@ -423,6 +428,12 @@ module OPAM = struct
   let unpin opam_root name =
     opam opam_root "pin"
       [OpamPackage.Name.to_string name; "none"]
+
+  let import opam_root ?fake file =
+    opam opam_root ?fake "switch" ["import"; "-f"; OpamFilename.to_string file]
+
+  let export opam_root file =
+    opam opam_root "switch" ["export"; "-f"; OpamFilename.to_string file]
 end
 
 module Check = struct
