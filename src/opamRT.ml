@@ -297,7 +297,7 @@ let test_dev_update_u path =
           Git.checkout dir commit;
           Git.branch dir;
           OPAM.update opam_root;
-          OPAM.upgrade opam_root [nv];
+          OPAM.upgrade opam_root [];
           Check.contents opam_root nv;
         ) commits
     ) packages
