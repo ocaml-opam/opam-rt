@@ -275,7 +275,8 @@ let test_dev_update_u path =
       match url with
       | None   -> acc
       | Some u ->
-        let dir = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
+        let url,_ = List.hd (OpamFile.URL.url u) in
+        let dir = OpamFilename.Dir.of_string url in
         if not (OpamFilename.exists_dir dir) then
           OpamGlobals.error_and_exit "Missing contents folder: %s"
             (OpamFilename.Dir.to_string dir);
