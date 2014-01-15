@@ -233,7 +233,7 @@ module Packages = struct
         | None
         | Some `local -> (OpamFilename.Dir.to_string path, None)
         | _           -> failwith "TODO" in
-      let url = URL.create kind [path] in
+      let url = URL.create kind path in
       let checksum = Printf.sprintf "checksum-%d" i in
       Some (URL.with_checksum url checksum)
 
@@ -587,8 +587,7 @@ module Check = struct
       | None   -> A.Map.empty
       | Some u ->
         let base =
-          let url,_ = List.hd (OpamFile.URL.url u) in
-          let package_root = OpamFilename.Dir.of_string url in
+          let package_root = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
           let filter file =
             if OpamFilename.starts_with (package_root / ".git") file then None
             else if OpamFilename.ends_with ".install" file then None
