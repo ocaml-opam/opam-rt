@@ -141,16 +141,17 @@ module Contents = struct
   type t = (basename * string) list
 
   let files seed = [
-    base "x/a", random_string (1 + seed * 2);
-    base "x/b", random_string (1 + seed * 3);
-    base "c"  , random_string (1 + seed);
+    base "x/a", random_string (1 + seed * 2), 0o644;
+    base "x/b", random_string (1 + seed * 3), 0o644;
+    base "c"  , random_string (1 + seed), 0o755;
   ]
 
   let install name =
     base (OpamPackage.Name.to_string name ^ ".install"),
     Printf.sprintf
       "lib: [ \"x/a\" \"x/b\" \"?1\" \"?k/1\" { \"k/1\" }]\n\
-       bin: [ \"c\" ]\n"
+       bin: [ \"c\" ]\n",
+    0o644
 
   let create nv seed =
     List.sort compare (install (OpamPackage.name nv) :: files seed)
@@ -162,7 +163,7 @@ module Contents = struct
     let files = List.map (fun file ->
         let base = base (OpamFilename.remove_prefix root file) in
         let content = OpamFilename.read file in
-        base, content
+        base, content, (Unix.stat (OpamFilename.to_string file)).Unix.st_perm
       ) files in
     List.sort compare files
 
@@ -173,9 +174,10 @@ module Contents = struct
       OpamFilename.mkdir root;
       Git.init root;
     );
-    List.iter (fun (base, contents) ->
+    List.iter (fun (base, contents, mode) ->
         let file = OpamFilename.create root base in
         OpamFilename.write file contents;
+        OpamFilename.chmod file mode;
         Git.add root file;
       ) t;
     Git.commit root "Add new content for package %s" (OpamPackage.to_string nv);
@@ -196,8 +198,8 @@ module Packages = struct
     opam    : OPAM.t;
     url     : URL.t option;
     descr   : Descr.t option;
-    files   : (basename * string) list;
-    contents: (basename * string) list;
+    files   : (basename * string * int) list;
+    contents: (basename * string * int) list;
     archive : string option;
   }
 
@@ -251,9 +253,10 @@ module Packages = struct
       log "Creating an archive file in %s" tmp_file;
       OpamFilename.with_tmp_dir (fun root ->
           let dir = root / OpamPackage.to_string nv in
-          List.iter (fun (base, contents) ->
+          List.iter (fun (base, contents, mode) ->
               let file = OpamFilename.create dir base in
-              OpamFilename.write file contents
+              OpamFilename.write file contents;
+              OpamFilename.chmod file mode
             ) contents;
           OpamFilename.exec root [
             ["tar"; "czf"; tmp_file; OpamPackage.to_string nv]
@@ -272,7 +275,8 @@ module Packages = struct
 
   let files = function
     | 0 -> []
-    | i -> [ (base "1", random_string i); (base "k/1", random_string (i*2)) ]
+    | i -> [ (base "1", random_string i, 0o644);
+             (base "k/1", random_string (i*2), 0o644) ]
 
   let file_list repo prefix nv =
     let opam = OpamPath.Repository.opam repo prefix nv in
@@ -300,9 +304,10 @@ module Packages = struct
     Contents.write contents_root t.nv t.contents;
     if t.files <> [] then (
       OpamFilename.mkdir files;
-      List.iter (fun (base, str) ->
+      List.iter (fun (base, str, mode) ->
           let file = OpamFilename.create files base in
-          OpamFilename.write file str
+          OpamFilename.write file str;
+          OpamFilename.chmod file mode
         ) t.files
     )
 
@@ -321,7 +326,8 @@ module Packages = struct
         let all = OpamFilename.rec_files files in
         List.map (fun file ->
             OpamFilename.Base.of_string (OpamFilename.remove_prefix files file),
-            OpamFilename.read file
+            OpamFilename.read file,
+            (Unix.stat (OpamFilename.to_string file)).Unix.st_perm
           ) all in
     let contents = Contents.read contents_root nv in
     let archive = read_o OpamFilename.read archive in
