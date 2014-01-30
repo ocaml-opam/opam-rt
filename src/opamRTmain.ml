@@ -196,5 +196,9 @@ let commands = [
   test;
 ]
 
+let _ =
+  (* Installing files respects umask, which may then create a diff *)
+  Unix.umask 0o022
+
 let () =
   OpamArg.run default commands
