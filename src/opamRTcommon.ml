@@ -15,6 +15,7 @@
  *)
 
 open OpamTypes
+open OpamTypesBase
 open OpamFilename.OP
 
 let seed_ref =
