@@ -17,6 +17,7 @@
 open OpamFilename.OP
 open OpamRTcommon
 open OpamTypes
+open OpamTypesBase
 
 let log fmt =
   OpamGlobals.log "RT" fmt
