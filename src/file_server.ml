@@ -36,7 +36,7 @@ let process root path =
 let make_server root port =
   Printf.printf "Starting the filer-server on port %d.\nRoot directory is %s\n%!"
     port root;
-  let callback conn_id ?body req =
+  let callback conn_id req body =
     let path = Uri.path (Request.uri req) in
     Printf.printf "Request received: PATH=%s\n%!" path;
     let path = Re_str.split_delim (Re_str.regexp_string "/") path in
