@@ -113,12 +113,12 @@ let check_installed path  ?(roots = []) wished_list =
   if OpamPackage.Set.compare installed wished_installed = 0
   && (roots = [] || OpamPackage.Set.compare wished_roots installed_roots = 0)
   then
-    OpamGlobals.msg "%a installed: %s\n"
-      (fun () -> Color.green "%s") "[OK]"
+    OpamGlobals.msg "%s installed: %s\n"
+      (Color.green "[OK]")
       (pkg_list installed_roots wished_list)
   else
-    (OpamGlobals.msg "%a installed: %s\n       expecting: %s\n"
-       (fun () -> Color.red "%s") "[FAIL]"
+    (OpamGlobals.msg "%s installed: %s\n       expecting: %s\n"
+       (Color.red "[FAIL]")
        (pkg_list installed_roots (OpamPackage.Set.elements installed))
        (pkg_list wished_roots wished_list);
      failwith "Installed packages don't match expectations")
@@ -515,11 +515,11 @@ module Big_upgrade : TEST = struct
       OpamProcess.run "diff"
         (List.map OpamFilename.to_string [reference; exportfile]) in
     if ret.OpamProcess.r_code = 0 then
-      (OpamGlobals.msg "%a Export files matches reference\n"
-         (fun () -> Color.green "%s") "[OK]")
+      (OpamGlobals.msg "%s Export files matches reference\n"
+         (Color.green "[OK]"))
     else
-      (OpamGlobals.msg "%a Export file differs from %s\n"
-         (fun () -> Color.red "%s") "[FAIL]"
+      (OpamGlobals.msg "%s Export file differs from %s\n"
+         (Color.red "[FAIL]")
          (OpamFilename.to_string reference);
        failwith "Installed packages don't match expectations")
 
