@@ -422,7 +422,8 @@ module OPAM = struct
     opam opam_root "update" ["--sync-archives"]
 
   let upgrade opam_root ?fake packages =
-    opam opam_root ?fake "upgrade" (List.map OpamPackage.to_string packages)
+    opam opam_root ?fake "upgrade"
+      (List.map OpamPackage.Name.to_string packages)
 
   let pin opam_root name path =
     opam opam_root "pin"
