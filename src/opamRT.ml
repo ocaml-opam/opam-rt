@@ -422,7 +422,7 @@ let test_reinstall_u path =
       "b" in
   Packages.add repo contents_root c2;
   OPAM.update opam_root;
-  OPAM.upgrade opam_root [pkg c];
+  OPAM.upgrade opam_root [c];
   check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
   step "Try to reinstall b (should work using the cache)";
   OPAM.reinstall opam_root b;
