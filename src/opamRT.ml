@@ -436,7 +436,6 @@ let test_reinstall_u path =
   OPAM.update opam_root;
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[] [a-v 2];
-(*
   step "Remove that new version of a and upgrade";
   OpamSystem.remove_dir (OpamFilename.Dir.to_string (path / "repo" / "packages" / "prefix-a" / "a.2" ));
   OPAM.update opam_root;
@@ -445,7 +444,6 @@ let test_reinstall_u path =
   step "Upgrade again";
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[] [a-v 1];
-*)
   ()
 
 let todo () =
