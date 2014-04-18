@@ -361,17 +361,12 @@ end
 let read_url opam_root nv =
   let read file =
     if OpamFilename.exists file then Some (OpamFile.URL.read file) else None in
-  let pinned_url =
-    let nv = OpamPackage.pinned (OpamPackage.name nv) in
-    OpamPath.Switch.Overlay.url opam_root OpamSwitch.default nv in
-  let overlay_url = OpamPath.Switch.Overlay.url opam_root OpamSwitch.default nv in
+  let name = OpamPackage.name nv in
+  let overlay_url = OpamPath.Switch.Overlay.url opam_root OpamSwitch.default name in
   let url = OpamPath.url opam_root nv in
-  match read pinned_url with
+  match read overlay_url with
   | Some u -> Some u
   | None   ->
-    match read overlay_url with
-    | Some u -> Some u
-    | None   ->
       match read url with
       | Some u -> Some u
       | None   -> None
@@ -427,15 +422,15 @@ module OPAM = struct
 
   let pin opam_root name path =
     opam opam_root "pin"
-      [OpamPackage.Name.to_string name; OpamFilename.Dir.to_string path]
+      ["add"; OpamPackage.Name.to_string name; OpamFilename.Dir.to_string path]
 
   let vpin opam_root name version =
     opam opam_root "pin"
-      [OpamPackage.Name.to_string name; OpamPackage.Version.to_string version]
+      ["add"; OpamPackage.Name.to_string name; OpamPackage.Version.to_string version]
 
   let unpin opam_root name =
     opam opam_root "pin"
-      [OpamPackage.Name.to_string name; "none"]
+      ["remove"; OpamPackage.Name.to_string name]
 
   let import opam_root ?fake file =
     opam opam_root ?fake "switch" ["import"; "-f"; OpamFilename.to_string file]
@@ -571,12 +566,10 @@ module Check = struct
     check_dirs ~filter ("repo", r) ("opam", o)
 
   let files_dir opam_root nv =
-    let pin = OpamPackage.pinned (OpamPackage.name nv) in
-    let d1 = OpamPath.Switch.Overlay.files opam_root OpamSwitch.default pin in
-    let d2 = OpamPath.Switch.Overlay.files opam_root OpamSwitch.default nv in
+    let d2 =
+      OpamPath.Switch.Overlay.files opam_root OpamSwitch.default (OpamPackage.name nv) in
     let d3 = OpamPath.files opam_root nv in
-    if OpamFilename.exists_dir d1 then Some d1
-    else if OpamFilename.exists_dir d2 then Some d2
+    if OpamFilename.exists_dir d2 then Some d2
     else if OpamFilename.exists_dir d3 then Some d3
     else None
 
