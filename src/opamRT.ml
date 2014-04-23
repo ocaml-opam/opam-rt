@@ -67,7 +67,7 @@ let create_config kind path =
     | Some `local
     | None        -> OpamFilename.Dir.to_string repo_root, None
     | _           -> failwith "TODO" in
-  let repo_kind = guess_repository_kind kind repo_address in
+  let repo_kind = OpamMisc.Option.default `local kind in
   let repo = {
     repo_name;
     repo_root;

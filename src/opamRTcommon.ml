@@ -231,10 +231,10 @@ module Packages = struct
   let url kind path = function
     | 0 -> None
     | i ->
-      let path = match kind with
-        | Some `git   -> (OpamFilename.Dir.to_string path, Some Git.test_tag)
+      let kind, path = match kind with
+        | Some `git   -> `git, (OpamFilename.Dir.to_string path, Some Git.test_tag)
         | None
-        | Some `local -> (OpamFilename.Dir.to_string path, None)
+        | Some `local -> `local, (OpamFilename.Dir.to_string path, None)
         | _           -> failwith "TODO" in
       let url = URL.create kind path in
       let checksum = Printf.sprintf "checksum-%d" i in
