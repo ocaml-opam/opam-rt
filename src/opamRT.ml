@@ -554,9 +554,7 @@ module Big_upgrade : TEST = struct
     check_export opam_root (data "init.export");
     step "upgrade";
     OPAM.upgrade opam_root ~fake:true [];
-    try check_export opam_root (data "expected.export")
-    with Failure _ when not !OpamGlobals.use_external_solver ->
-      OpamGlobals.note "Expected failure since the external solver is disabled"
+    check_export opam_root (data "expected.export")
 end
 
 let tests = [
