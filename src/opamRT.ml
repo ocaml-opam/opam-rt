@@ -168,7 +168,9 @@ let init_repo_update_u kind path =
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
   OPAM.init opam_root repo;
-  OPAM.install opam_root (OpamPackage.Name.of_string "a.1");
+  OPAM.install opam_root
+    ~version:(OpamPackage.Version.of_string "1")
+    (OpamPackage.Name.of_string "a");
   stop_file_server repo
 
 let init_dev_update_u contents_kind path =
@@ -309,11 +311,10 @@ let test_pin_install_u path =
   let { repo; opam_root; contents_root } = read_config path in
   let b = OpamPackage.Name.of_string "b" in
   let a = OpamPackage.Name.of_string "a" in
-  let pinned = OpamPackage.Version.pinned in
   let v version = OpamPackage.Version.of_string (string_of_int version) in
   let (-) = OpamPackage.create in
   let overlay name =
-    OpamPath.Switch.Overlay.opam opam_root OpamSwitch.default (OpamPackage.pinned name) in
+    OpamPath.Switch.Overlay.opam opam_root OpamSwitch.default name in
   let map_overlay f pkg =
     let o = overlay pkg in
     OpamFile.OPAM.write o (f (OpamFile.OPAM.read o)) in
@@ -321,13 +322,13 @@ let test_pin_install_u path =
     fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
   step "Install b (version 2)";
   OPAM.install opam_root b;
-  check_installed path ~roots:[ b-v 2 ] [ a-pinned; b-v 2 ];
+  check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
   step "Attempt to install b.1 (should fail because a is pinned to 2)";
   (try
     OPAM.install opam_root b ~version:(v 1);
     failwith "should fail"
    with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
-  check_installed path ~roots:[ b-v 2 ] [ a-pinned; b-v 2 ];
+  check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
   step "Cleanup";
   OPAM.remove opam_root ~auto:true b;
   check_installed path [];
@@ -341,11 +342,11 @@ let test_pin_install_u path =
   check_installed path [];
   step "Install b, should get version 1";
   OPAM.install opam_root b;
-  check_installed path ~roots:[ b-v 1 ] [ b-v 1; a-pinned ];
+  check_installed path ~roots:[ b-v 1 ] [ b-v 1; a-v 1 ];
   step "Change pinned version of installed package a back to 2";
   map_overlay (fun o -> OpamFile.OPAM.with_version o (v 2)) a;
   OPAM.upgrade opam_root [];
-  check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-pinned ];
+  check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-v 2 ];
   (* -- *)
   step "Remove all, unpin a, add a new version of a and update";
   OPAM.remove opam_root a;
@@ -357,7 +358,7 @@ let test_pin_install_u path =
   step "Pin a to version 2 and install";
   OPAM.vpin opam_root a (v 2);
   OPAM.install opam_root a;
-  check_installed path ~roots:[a-pinned] [a-pinned];
+  check_installed path ~roots:[a-v 2] [a-v 2];
   step "Unpin a";
   OPAM.unpin opam_root a;
   check_installed path ~roots:[a-v 2] [a-v 2];
@@ -480,6 +481,26 @@ module Reinstall : TEST = struct
   let run  kind = check_and_run kind test_reinstall_u
 end
 
+(* Tests to add:
+pin uninstall
+pin already installed
+repin
+unpin
+
+update for new metadata
+
+update when user changed metadata
+
+update when both changed metadata
+
+pin kinds: path, version, remote, git
+
+pin edit + user version change
+
+dev packages + update
+
+*)
+
 module Big_upgrade : TEST = struct
   let init kind path =
     log "init-big-upgrade %s\n" (OpamFilename.Dir.to_string path);
@@ -533,7 +554,9 @@ module Big_upgrade : TEST = struct
     check_export opam_root (data "init.export");
     step "upgrade";
     OPAM.upgrade opam_root ~fake:true [];
-    check_export opam_root (data "expected.export")
+    try check_export opam_root (data "expected.export")
+    with Failure _ when not !OpamGlobals.use_external_solver ->
+      OpamGlobals.note "Expected failure since the external solver is disabled"
 end
 
 let tests = [
