@@ -422,15 +422,15 @@ module OPAM = struct
 
   let pin opam_root name path =
     opam opam_root "pin"
-      ["add"; OpamPackage.Name.to_string name; OpamFilename.Dir.to_string path]
+      ["add"; "-n"; OpamPackage.Name.to_string name; OpamFilename.Dir.to_string path]
 
   let vpin opam_root name version =
     opam opam_root "pin"
-      ["add"; OpamPackage.Name.to_string name; OpamPackage.Version.to_string version]
+      ["add"; "-n"; OpamPackage.Name.to_string name; OpamPackage.Version.to_string version]
 
   let unpin opam_root name =
     opam opam_root "pin"
-      ["remove"; OpamPackage.Name.to_string name]
+      ["remove"; "-n"; OpamPackage.Name.to_string name]
 
   let import opam_root ?fake file =
     opam opam_root ?fake "switch" ["import"; "-f"; OpamFilename.to_string file]
