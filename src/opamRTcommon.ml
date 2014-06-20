@@ -433,10 +433,10 @@ module OPAM = struct
       ["remove"; "-n"; OpamPackage.Name.to_string name]
 
   let import opam_root ?fake file =
-    opam opam_root ?fake "switch" ["import"; "-f"; OpamFilename.to_string file]
+    opam opam_root ?fake "switch" ["import"; OpamFilename.to_string file]
 
   let export opam_root file =
-    opam opam_root "switch" ["export"; "-f"; OpamFilename.to_string file]
+    opam opam_root "switch" ["export"; OpamFilename.to_string file]
 end
 
 module Check = struct
