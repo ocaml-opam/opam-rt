@@ -85,8 +85,8 @@ module Git = struct
           let dir =
             OpamMisc.remove_prefix ~prefix:(OpamFilename.to_string (repo//""))
               (OpamFilename.Dir.to_string dir) in
-          exec repo [ "git"; "add"; dir ];
-          exec repo [ "git"; "commit"; "-m"; msg; dir; "--allow-empty" ];
+          exec repo [ "git"; "add"; "--all"; dir ];
+          exec repo [ "git"; "commit"; "-m"; msg; "--allow-empty" ];
         else
           OpamGlobals.error_and_exit "Cannot commit %s" (OpamFilename.Dir.to_string dir);
       ) fmt
@@ -104,6 +104,9 @@ module Git = struct
 
   let branch repo =
     exec repo ["git"; "checkout"; "-B"; test_tag]
+
+  let master repo =
+    exec repo ["git"; "checkout"; "master"]
 
   let add repo file =
     if OpamFilename.exists file then
@@ -373,16 +376,23 @@ let read_url opam_root nv =
 
 module OPAM = struct
 
-  let opam ?(fake=false) opam_root command args =
+  let opam ?(fake=false) ?(env=[]) opam_root command args =
     OpamGlobals.msg "%s\n" (Color.blue ">> opam %s %s " command (String.concat " " args));
     let debug = if !OpamGlobals.debug then ["--debug"] else [] in
-    OpamSystem.command
+    OpamSystem.command ~env:(Array.concat [Unix.environment(); Array.of_list env])
       ("opam" :: command ::
          "--yes" ::
          ["--root"; (OpamFilename.Dir.to_string opam_root)]
          @ debug
          @ (if fake then ["--fake"] else [])
          @ args)
+
+  let var opam_root var =
+    String.concat "\n"
+      (OpamSystem.read_command_output
+         ("opam" :: "config" :: "var" ::
+          "--root" :: (OpamFilename.Dir.to_string opam_root)
+          :: [var]))
 
   let init opam_root repo =
     let kind = string_of_repository_kind repo.repo_kind in
@@ -420,17 +430,33 @@ module OPAM = struct
     opam opam_root ?fake "upgrade"
       (List.map OpamPackage.Name.to_string packages)
 
-  let pin opam_root name path =
+  let pin opam_root ?(action=false) name path =
     opam opam_root "pin"
-      ["add"; "-n"; OpamPackage.Name.to_string name; OpamFilename.Dir.to_string path]
+      (["add"; OpamPackage.Name.to_string name; OpamFilename.Dir.to_string path]
+       @ if action then [] else ["-n"])
 
   let vpin opam_root name version =
     opam opam_root "pin"
       ["add"; "-n"; OpamPackage.Name.to_string name; OpamPackage.Version.to_string version]
 
-  let unpin opam_root name =
+  let pin_kind opam_root ?(action=false) ?kind name target =
     opam opam_root "pin"
-      ["remove"; "-n"; OpamPackage.Name.to_string name]
+      (["add"; OpamPackage.Name.to_string name; target]
+       @ (match kind with None -> [] | Some k -> ["--kind";k])
+       @ if action then [] else ["-n"])
+
+  let unpin opam_root ?(action=false) name =
+    opam opam_root "pin"
+      (["remove"; OpamPackage.Name.to_string name]
+       @ if action then [] else ["-n"])
+
+  let pin_edit opam_root ?(action=false) name write_file =
+    let f = OpamSystem.temp_file "opamRT" in
+    write_file (OpamFilename.of_string f);
+    let env = [Printf.sprintf "OPAM_EDITOR=cp -f %s" f] in
+    opam opam_root ~env "pin"
+      (["edit"; OpamPackage.Name.to_string name]
+       @ if action then [] else ["-n"])
 
   let import opam_root ?fake file =
     opam opam_root ?fake "switch" ["import"; OpamFilename.to_string file]
