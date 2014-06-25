@@ -18,6 +18,7 @@ open OpamFilename.OP
 open OpamRTcommon
 open OpamTypes
 open OpamTypesBase
+open OpamMisc.OP
 
 let log fmt =
   OpamGlobals.log "RT" fmt
@@ -481,25 +482,148 @@ module Reinstall : TEST = struct
   let run  kind = check_and_run kind test_reinstall_u
 end
 
-(* Tests to add:
-pin uninstall
-pin already installed
-repin
-unpin
+module Pin_advanced : TEST = struct
+  let init kind = run (init_dev_update_u kind)
 
-update for new metadata
+  let run_u path =
+    let { repo; opam_root; contents_root } = read_config path in
+    let a = OpamPackage.Name.of_string "a" in
+    let z = OpamPackage.Name.of_string "z" in
+    let v version = OpamPackage.Version.of_string (string_of_int version) in
+    let (-) = OpamPackage.create in
+    let step = let i = ref 0 in
+      fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    let check_pkg_shares pkg files =
+      let files = List.sort compare files in
+      let dir =
+        OpamFilename.Dir.of_string
+          (OPAM.var opam_root (OpamPackage.Name.to_string pkg ^ ":share")) in
+      let found_files =
+        List.sort compare (List.map
+                             (OpamFilename.remove_prefix dir)
+                             (OpamFilename.rec_files dir)) in
+      if files <> found_files then
+        (OpamGlobals.error "Installed files in %s don't match:\n  - found    %s\n  - expected %s"
+           (OpamFilename.Dir.to_string dir)
+           (String.concat " " found_files) (String.concat ", " files);
+         failwith "Bad installed files")
+    in
+    let write_opam nv touch_files file =
+      let opam = OpamFile.OPAM.create nv in
+      let this = OpamPackage.Name.to_string (OpamPackage.name nv) in
+      let opam = OpamFile.OPAM.with_build opam
+          (([CString "mkdir",None; CString "-p", None; CIdent (this^":share"), None],None)::
+           List.map (fun f -> [CString "touch",None; CString ("%{"^this^":share}%/"^f), None],None)
+             touch_files) in
+      (* rm is useless in share/ (cleaned up anyway), and expected to be changed on pin-edit
+      let opam = OpamFile.OPAM.with_remove opam
+          (List.map (fun f -> [CString "rm",None; CString ("%{"^this^":share}%/"^f), None],None)
+             touch_files) in
+      *)
+      OpamFile.OPAM.write file opam
+    in
+    let tests pin_update pin_target pin_kind pin_version =
+      step "Pin (uninstalled) package a";
+      OPAM.pin_kind opam_root ~action:false ~kind:pin_kind a (pin_target a);
+      step "Install a";
+      OPAM.install opam_root a;
+      check_installed path [a-pin_version];
+      check_pkg_shares a ["pinned_5"];
+      step "Unpin a";
+      OPAM.unpin opam_root ~action:false a;
+      check_installed path [a-pin_version];
+      step "Reinstall a (should fail nicely, same version not available)";
+      (try
+         OPAM.reinstall opam_root a;
+         failwith "should fail"
+       with OpamSystem.Process_error {OpamProcess.r_code = 66} -> ());
+      check_installed path [a-pin_version];
+      check_pkg_shares a ["pinned_5"];
+      step "Upgrade a";
+      OPAM.upgrade opam_root [a];
+      check_installed path [a-v 1];
+      check_pkg_shares a [];
+      step "Pin (installed) package a";
+      OPAM.pin_kind opam_root ~action:true ~kind:pin_kind a (pin_target a);
+      check_installed path [a-pin_version];
+      check_pkg_shares a ["pinned_5"];
+      step "Change in-source opam and update";
+      pin_update a (fun () ->
+          OpamFilename.remove (OpamFilename.of_string "opam");
+          let opdir = OpamFilename.Dir.of_string "opam" in
+          OpamFilename.mkdir opdir;
+          write_opam (a-v 5) ["repin_5"] (opdir // "opam"));
+      OPAM.upgrade opam_root [a];
+      check_installed path [a-pin_version];
+      check_pkg_shares a ["repin_5"];
+      step "Pin-edit";
+      step "Pin-edit AND change in-source opam";
+      OPAM.pin_edit opam_root ~action:false a
+        (write_opam (a-v 5) ["pin-edit_bis"]);
+      pin_update a (fun () ->
+          write_opam (a-v 5) ["repin_5bis"] (OpamFilename.Dir.of_string "opam" // "opam"));
+      (* We are on --yes so the source version should win *)
+      OPAM.upgrade opam_root [a];
+      check_installed path [a-pin_version];
+      check_pkg_shares a ["repin_5bis"];
+      step "Pin-edit with version change";
+      OPAM.pin_edit opam_root ~action:true a
+        (write_opam (a-v 100) ["pin-edit-v100"]);
+      check_installed path [a-v 100];
+      check_pkg_shares a ["pin-edit-v100"];
+      step "Create new package z by pinning";
+      pin_update z (fun () ->
+          OpamFilename.write (OpamFilename.of_string "contents") "contents";
+          write_opam (z-v 2) ["pkg-b";"no-repo"] (OpamFilename.of_string "opam"));
+      OPAM.pin_kind opam_root ~action:true ~kind:pin_kind z (pin_target z);
+      check_installed path [a-v 100; z-v 2];
+      check_pkg_shares z ["pkg-b";"no-repo"];
+      step "Unpin all";
+      OPAM.unpin opam_root ~action:true a;
+      OPAM.unpin opam_root ~action:true z;
+      check_installed path [a-v 1];
+      step "Cleanup";
+      OPAM.remove opam_root a
+    in
 
-update when user changed metadata
+    OpamGlobals.header_msg "Local pin";
+    let pindir = contents_root / "pins" in
+    OpamFilename.mkdir pindir;
+    OpamFilename.copy_dir ~src:(contents_root / "a.1") ~dst:(pindir / "a");
+    write_opam (a-v 5) ["pinned_5"] (pindir / "a" // "opam");
+    let pin_update name f =
+      let d = pindir / OpamPackage.Name.to_string name in
+      OpamFilename.mkdir d;
+      OpamFilename.in_dir d f in
+    tests pin_update
+      (fun name ->
+         "file://" ^ OpamFilename.Dir.to_string (pindir / OpamPackage.Name.to_string name))
+      "path"
+      (v 5);
 
-update when both changed metadata
+    OpamGlobals.header_msg "Git pin";
+    let pindir = contents_root / "git-pins" in
+    OpamFilename.mkdir pindir;
+    let pin_update name f =
+      let d = pindir / OpamPackage.Name.to_string name in
+      OpamFilename.mkdir d;
+      if not (OpamFilename.exists_dir (d/".git")) then
+        Git.init d;
+      OpamFilename.in_dir d f;
+      Git.commit_dir d d "Some commit to %s"
+        (OpamPackage.Name.to_string name) in
+    OpamFilename.copy_dir ~src:(contents_root / "a.1") ~dst:(pindir / "a");
+    Git.master (pindir / "a");
+    pin_update a (fun () ->
+        write_opam (a-v 5) ["pinned_5"] (OpamFilename.of_string "opam"));
+    tests pin_update
+      (fun name ->
+         OpamFilename.Dir.to_string (pindir / OpamPackage.Name.to_string name))
+      "git"
+      (v 5)
 
-pin kinds: path, version, remote, git
-
-pin edit + user version change
-
-dev packages + update
-
-*)
+  let run kind = run run_u
+end
 
 module Big_upgrade : TEST = struct
   let init kind path =
@@ -563,5 +687,6 @@ let tests = [
   "pin-update",  (module Pin_update  : TEST);
   "pin-install", (module Pin_install : TEST);
   "reinstall",   (module Reinstall   : TEST);
+  "pin-advanced",(module Pin_advanced: TEST);
   "big-upgrade", (module Big_upgrade : TEST);
 ]
