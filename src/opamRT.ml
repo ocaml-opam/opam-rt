@@ -515,11 +515,11 @@ module Pin_advanced : TEST = struct
           (([CString "mkdir",None; CString "-p", None; CIdent (this^":share"), None],None)::
            List.map (fun f -> [CString "touch",None; CString ("%{"^this^":share}%/"^f), None],None)
              touch_files) in
-      (* rm is useless in share/ (cleaned up anyway), and expected to be changed on pin-edit
+      (* OPAM is not expected to keep track of what to remove after "pin --edit",
+         so remove the whole directory. *)
       let opam = OpamFile.OPAM.with_remove opam
-          (List.map (fun f -> [CString "rm",None; CString ("%{"^this^":share}%/"^f), None],None)
-             touch_files) in
-      *)
+          [[CString "rm",None; CString "-rf",None;
+            CString ("%{"^this^":share}%/"), None],None] in
       OpamFile.OPAM.write file opam
     in
     let tests pin_update pin_target pin_kind pin_version =
