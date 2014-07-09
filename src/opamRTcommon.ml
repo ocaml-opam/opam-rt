@@ -478,12 +478,13 @@ module Check = struct
   exception Sync_errors of error list
 
   let sync_errors errors =
-    OpamGlobals.error "\n%s" (Color.red " -- Sync error --");
-    List.iter (fun { source; attr; file } ->
-        OpamGlobals.error "%s: %s\n%s\n%s\n"
-          source
-          (A.to_string attr) (OpamFilename.to_string file) (OpamFilename.read file)
-      ) errors;
+    OpamGlobals.header_error "Sync mismatch" "%s"
+      (String.concat "\n"
+         (List.map (fun { source; attr; file } ->
+              Printf.sprintf "%s: %s\n  %s: %S\n"
+                source (A.to_string attr)
+                (OpamFilename.to_string file) (OpamFilename.read file)
+            ) errors));
     raise (Sync_errors errors)
 
   let set map =
@@ -602,12 +603,19 @@ module Check = struct
   let contents opam_root nv =
 
     let opam =
+      let name = OpamPackage.name nv in
       let libs =
-        OpamPath.Switch.lib opam_root OpamSwitch.default (OpamPackage.name nv) in
+        OpamPath.Switch.lib opam_root OpamSwitch.default name in
       let bins =
         OpamPath.Switch.bin opam_root OpamSwitch.default in
       A.Map.union
-        (fun x y -> failwith "union") (attributes libs) (attributes bins) in
+        (fun x y -> failwith "union")
+        (attributes
+           ~filter:(fun f ->
+               if f <> OpamPath.Switch.config opam_root OpamSwitch.default name
+               then Some libs else None)
+           libs)
+        (attributes bins) in
 
     let contents =
       match read_url opam_root nv with
