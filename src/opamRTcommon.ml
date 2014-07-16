@@ -216,7 +216,7 @@ module Packages = struct
     let depends =
       OpamFormula.And
         (OPAM.depends t.opam,
-         Atom (OpamPackage.Name.of_string name, formula)) in
+         Atom (OpamPackage.Name.of_string name, ([], formula))) in
     { t with opam = OPAM.with_depends t.opam depends }
 
   let add_depend_with_runtime_checks opam_root t ?formula name =
