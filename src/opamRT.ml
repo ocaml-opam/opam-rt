@@ -483,7 +483,7 @@ module Reinstall : TEST = struct
 end
 
 module Pin_advanced : TEST = struct
-  let init kind = run (init_dev_update_u kind)
+  let init kind = check_and_run kind (init_dev_update_u kind)
 
   let run_u path =
     let { repo; opam_root; contents_root } = read_config path in
@@ -622,7 +622,7 @@ module Pin_advanced : TEST = struct
       "git"
       (v 5)
 
-  let run kind = run run_u
+  let run kind = check_and_run kind run_u
 end
 
 module Big_upgrade : TEST = struct
@@ -678,7 +678,9 @@ module Big_upgrade : TEST = struct
     check_export opam_root (data "init.export");
     step "upgrade";
     OPAM.upgrade opam_root ~fake:true [];
-    check_export opam_root (data "expected.export")
+    try check_export opam_root (data "expected.export")
+    with Failure _ when not !OpamGlobals.use_external_solver ->
+      OpamGlobals.note "Expected failure since the external solver is disabled"
 end
 
 let tests = [
