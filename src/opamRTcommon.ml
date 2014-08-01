@@ -432,7 +432,7 @@ module OPAM = struct
 
   let pin opam_root ?(action=false) name path =
     opam opam_root "pin"
-      (["add"; OpamPackage.Name.to_string name; OpamFilename.Dir.to_string path]
+      (["add"; OpamPackage.Name.to_string name; "--kind=local"; OpamFilename.Dir.to_string path]
        @ if action then [] else ["-n"])
 
   let vpin opam_root name version =
