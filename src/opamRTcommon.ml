@@ -377,9 +377,15 @@ let read_url opam_root nv =
 module OPAM = struct
 
   let opam ?(fake=false) ?(env=[]) opam_root command args =
-    OpamGlobals.msg "%s\n" (Color.blue ">> opam %s %s " command (String.concat " " args));
+    let env = "OPAMNOBASEPACKAGES=1" :: env in
+    OpamGlobals.msg "%s\n"
+      (Color.blue ">> %s opam %s %s "
+         (String.concat ";" env)
+         command
+         (String.concat " " args));
     let debug = if !OpamGlobals.debug then ["--debug"] else [] in
-    OpamSystem.command ~env:(Array.concat [Unix.environment(); Array.of_list env])
+    OpamSystem.command
+      ~env:(Array.concat [Unix.environment(); Array.of_list env])
       ("opam" :: command ::
          "--yes" ::
          ["--root"; (OpamFilename.Dir.to_string opam_root)]
@@ -400,8 +406,7 @@ module OPAM = struct
     opam opam_root "init" [
       OpamRepositoryName.to_string repo.repo_name;
       string_of_address repo.repo_address;
-      "--no-setup"; "--no-base-packages";
-      "--kind"; kind
+      "--no-setup"; "--kind"; kind
     ]
 
   let install opam_root ?version name =
