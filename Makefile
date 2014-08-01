@@ -1,4 +1,4 @@
-BUILD=ocamlbuild -use-ocamlfind -pkgs opam.client,cohttp.lwt -no-links -cflags -bin-annot
+BUILD=ocamlbuild -use-ocamlfind -pkgs opam-lib.client,cohttp.lwt -no-links -cflags -bin-annot
 TARGETS=src/opamRTmain.native src/file_server.native
 OPAMRT=./opam-rt
 TESTDIR=/tmp/xxx
