@@ -17,7 +17,6 @@
 open OpamTypes
 open OpamTypesBase
 open Cmdliner
-open OpamArg
 
 let version = "0.0.1"
 
@@ -34,6 +33,11 @@ let help_sections = [
   `P "Thomas Gazagnaire   <thomas.gazagnaire@ocamlpro.com>"; `Noblank;
   `P "Louis Gesbert       <louis.gesbert@ocamlpro.com>"; `Noblank;
 ]
+
+let dirname =
+  let parse str = `Ok (OpamFilename.Dir.of_string str) in
+  let print ppf dir = Format.pp_print_string ppf (OpamFilename.prettify_dir dir) in
+  parse, print
 
 (* HELP *)
 let help =
@@ -83,6 +87,29 @@ let data_dir =
 let apply_data_dir data_dir =
   OpamRTcommon.datadir := OpamFilename.Dir.of_string data_dir
 
+let mk_opt ?section ?vopt flags value doc conv default =
+  let doc = Arg.info ?docs:section ~docv:value ~doc flags in
+  Arg.(value & opt ?vopt conv default & doc)
+
+let repo_kind_flag =
+  let kinds = [
+    (* main kinds *)
+    "http" , `http;
+    "local", `local;
+    "git"  , `git;
+    "darcs"  , `darcs;
+    "hg"   , `hg;
+
+    (* aliases *)
+    "wget" , `http;
+    "curl" , `http;
+    "rsync", `local;
+  ] in
+  mk_opt ["k";"kind"]
+    "KIND" "Specify the kind of the repository to be set (the main ones \
+            are 'http', 'local', 'git', 'darcs' or 'hg')."
+    Arg.(some (enum kinds)) None
+
 (* INIT *)
 let init_doc = "Initialize an opam-rt instance."
 let init =
@@ -94,13 +121,12 @@ let init =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some dirname) None & doc) in
-  let init global_options seed data kind path test =
-    apply_global_options global_options;
+  let init seed data kind path test =
     set_seed seed;
     apply_data_dir data;
     let module Test = (val test: OpamRT.TEST) in
     Test.init kind path in
-  Term.(pure init $global_options $seed_flag $data_dir $repo_kind_flag $path $test_case),
+  Term.(pure init $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
 (* RUN *)
@@ -114,13 +140,12 @@ let run =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some dirname) None & doc) in
-  let run global_options seed data kind path test =
-    apply_global_options global_options;
+  let run seed data kind path test =
     set_seed seed;
     apply_data_dir data;
     let module Test = (val test: OpamRT.TEST) in
     Test.run kind path in
-  Term.(pure run $global_options $seed_flag $data_dir $repo_kind_flag $path $test_case),
+  Term.(pure run $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 
 (* TEST *)
@@ -134,8 +159,7 @@ let test =
   let path =
     let doc = Arg.info ~docv:"PATH" ~doc:"The local repository root." [] in
     Arg.(required & pos 0 (some dirname) None & doc) in
-  let test global_options seed data kind path test =
-    apply_global_options global_options;
+  let test seed data kind path test =
     apply_data_dir data;
     set_seed seed;
     let module Test = (val test: OpamRT.TEST) in
@@ -144,7 +168,7 @@ let test =
     then OpamFilename.rmdir path;
     Test.init kind path;
     Test.run kind path in
-  Term.(pure test $global_options $seed_flag $data_dir $repo_kind_flag $path $test_case),
+  Term.(pure test $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "test" ~doc ~man
 
 (* LIST *)
@@ -156,10 +180,10 @@ let list =
     `P "The $(b,list) command lists the names of available test suites on \
         standard output";
   ] in
-  let list global_options =
+  let list () =
     print_endline (String.concat " " (List.map fst OpamRT.tests))
   in
-  Term.(pure list $ global_options),
+  Term.(pure list $ pure ()),
   term_info "list" ~doc ~man
 
 let default =
@@ -169,8 +193,7 @@ let default =
         for more information on a specific command.";
   ] @  help_sections
   in
-  let usage global_options =
-    apply_global_options global_options;
+  let usage () =
     OpamGlobals.msg
       "usage: opam-rt [--version]\n\
       \               [--help]\n\
@@ -183,7 +206,7 @@ let default =
        \n\
        See 'opam-rt help <command>' for more information on a specific command.\n"
       init_doc run_doc test_doc in
-  Term.(pure usage $global_options),
+  Term.(pure usage $ pure ()),
   Term.info "opam-rt"
     ~version
     ~sdocs:global_option_section
@@ -202,4 +225,35 @@ let _ =
   Unix.umask 0o022
 
 let () =
-  OpamArg.run default commands
+  Sys.catch_break true;
+  let _ = Sys.signal Sys.sigpipe Sys.Signal_ignore in
+  try
+    match Term.eval_choice ~catch:false default commands with
+    | `Error _ -> exit 1
+    | _        -> exit 0
+  with
+  | OpamGlobals.Exit 0 -> ()
+  | OpamGlobals.Exec (cmd,args,env) ->
+    Unix.execvpe cmd args env
+  | e                  ->
+    if !OpamGlobals.verbose then
+      Printf.eprintf "'%s' failed.\n" (String.concat " " (Array.to_list Sys.argv));
+    let exit_code = ref 1 in
+    begin match e with
+      | OpamGlobals.Exit i ->
+        exit_code := i;
+        if !OpamGlobals.debug && i <> 0 then
+          Printf.eprintf "%s" (OpamMisc.pretty_backtrace e)
+      | OpamSystem.Internal_error _
+      | OpamSystem.Process_error _ ->
+        Printf.eprintf "%s\n" (Printexc.to_string e);
+        Printf.eprintf "%s" (OpamMisc.pretty_backtrace e);
+      | Sys.Break -> exit_code := 130
+      | Failure msg ->
+        Printf.eprintf "Fatal error: %s\n" msg;
+        Printf.eprintf "%s" (OpamMisc.pretty_backtrace e);
+      | _ ->
+        Printf.eprintf "Fatal error:\n%s\n" (Printexc.to_string e);
+        Printf.eprintf "%s" (OpamMisc.pretty_backtrace e);
+    end;
+    exit !exit_code
