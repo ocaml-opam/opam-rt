@@ -1,6 +1,6 @@
 BUILD=ocamlbuild -use-ocamlfind -pkgs opam-lib.client,cohttp.lwt -no-links -cflags -bin-annot
 TARGETS=src/opamRTmain.native src/file_server.native
-OPAMRT=./opam-rt
+OPAMRT=OPAMYES=1 ./opam-rt
 TESTDIR=/tmp/xxx
 KINDS = local http git
 
@@ -17,7 +17,7 @@ run: opam-rt
 	@for kind in $(KINDS); do \
 	  for test in $(shell $(OPAMRT) list); do \
 	    ( echo "TEST:" $$test-$$kind && \
-	      $(OPAMRT) test $(TESTDIR) $$test --kind $$kind --yes ) \
+	      $(OPAMRT) test $(TESTDIR) $$test --kind $$kind) \
 	    || exit; \
 	  done; \
 	done
