@@ -113,6 +113,11 @@ module Git = struct
       let file = OpamFilename.remove_prefix repo file in
       exec repo ["git"; "add"; file]
 
+  let add_list repo files =
+    let files = List.filter OpamFilename.exists files in
+    let files = List.map (OpamFilename.remove_prefix repo) files in
+    exec repo ("git" :: "add" :: files)
+
   let checkout repo hash =
     exec repo ["git"; "checkout"; hash];
     exec repo ["git"; "clean"; "-fdx"]
