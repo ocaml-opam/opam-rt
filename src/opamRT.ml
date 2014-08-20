@@ -640,10 +640,12 @@ module Big_upgrade : TEST = struct
     start_file_server repo;
     Git.init repo.repo_root;
     let git_dir_re = Re_str.regexp "\\(.*/\\)?\\.git\\(/.*\\)?" in
-    List.iter (fun f ->
-        if not (Re_str.string_match git_dir_re f 0) then
-          Git.add repo.repo_root (OpamFilename.of_string f))
-      (OpamSystem.rec_files (OpamFilename.Dir.to_string repo.repo_root));
+    Git.add_list repo.repo_root
+      (OpamMisc.filter_map (fun f ->
+           if Re_str.string_match git_dir_re f 0 then None
+           else Some (OpamFilename.of_string f))
+          (OpamSystem.rec_files
+             (OpamFilename.Dir.to_string repo.repo_root)));
     Git.commit repo.repo_root "Init repo from stored data";
     Git.branch repo.repo_root;
     OpamGlobals.msg
