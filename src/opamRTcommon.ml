@@ -116,7 +116,21 @@ module Git = struct
   let add_list repo files =
     let files = List.filter OpamFilename.exists files in
     let files = List.map (OpamFilename.remove_prefix repo) files in
-    exec repo ("git" :: "add" :: files)
+    (* Add them 100 at a time *)
+    let rec take_n l n =
+      if n <= 0 then [], l else
+        match l with
+        | [] -> [], []
+        | x::r -> let a,l = take_n r (n-1) in x::a, l
+    in
+    let rec loop l = match l with
+      | [] -> ()
+      | l ->
+          let files,r = take_n l 100 in
+          exec repo ("git" :: "add" :: files);
+          loop r
+    in
+    loop files
 
   let checkout repo hash =
     exec repo ["git"; "checkout"; hash];
