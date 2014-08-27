@@ -164,7 +164,7 @@ let test =
     set_seed seed;
     let module Test = (val test: OpamRT.TEST) in
     if OpamFilename.exists_dir path
-    && OpamState.confirm "Do you want to remove %s ?" (OpamFilename.Dir.to_string path)
+    && OpamGlobals.confirm "Do you want to remove %s ?" (OpamFilename.Dir.to_string path)
     then OpamFilename.rmdir path;
     Test.init kind path;
     Test.run kind path in
