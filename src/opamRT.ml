@@ -482,6 +482,64 @@ module Reinstall : TEST = struct
   let run  kind = check_and_run kind test_reinstall_u
 end
 
+module Dep_cycle : TEST = struct
+
+  let init_u kind path =
+    log "init-dep-cycle";
+    let { repo; opam_root; contents_root } =
+      create_config (Some `local)  path in
+    OpamGlobals.msg
+      "Creating a new repository in %s/ ...\n"
+      (OpamFilename.Dir.to_string repo.repo_root);
+    OpamRTinit.create_simple_repo repo contents_root kind;
+    let packages =
+      let a1 = OpamRTinit.package "a" 1 (Some `local) contents_root 450 in
+      let a2 = OpamRTinit.package "a" 2 (Some `local) contents_root 451 in
+      let b1 = OpamRTinit.package "b" 1 (Some `local) contents_root 452 in
+      let b2 = OpamRTinit.package "b" 2 (Some `local) contents_root 453 in
+      let a1 = Packages.add_depend_with_runtime_checks opam_root a1
+          ~formula:(Atom (`Eq, OpamPackage.Version.of_string "1"))
+          "b" in
+      let b2 = Packages.add_depend_with_runtime_checks opam_root b2
+          ~formula:(Atom (`Eq, OpamPackage.Version.of_string "2"))
+          "a" in
+      [ a1; a2; b1; b2 ]
+    in
+    List.iter (Packages.add repo contents_root) packages;
+    OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+    OPAM.init opam_root repo;
+    OPAM.update opam_root
+
+  let init kind = check_and_run kind (init_u kind)
+
+  let run_u kind path =
+    let { repo; opam_root; contents_root } = read_config path in
+    let a = OpamPackage.Name.of_string "a" in
+    let b = OpamPackage.Name.of_string "b" in
+    let v version = OpamPackage.Version.of_string (string_of_int version) in
+    let (-) = OpamPackage.create in
+    let step = let i = ref 0 in
+      fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    step "Install a1";
+    OPAM.install opam_root a ~version:(v 1);
+    check_installed path [a-v 1;b-v 1];
+    step "Upgrade";
+    OPAM.upgrade opam_root [];
+    check_installed path [a-v 2;b-v 2];
+    step "Downgrade a";
+    OPAM.install opam_root a ~version:(v 1);
+    check_installed path [a-v 1;b-v 1];
+    step "Upgrade";
+    OPAM.upgrade opam_root [];
+    check_installed path [a-v 2;b-v 2];
+    step "Remove b then downgrade a";
+    OPAM.remove opam_root b;
+    OPAM.install opam_root a ~version:(v 1);
+    check_installed path [a-v 1;b-v 1]
+
+  let run kind = check_and_run kind (run_u kind)
+end
+
 module Pin_advanced : TEST = struct
   let init kind = check_and_run kind (init_dev_update_u kind)
 
@@ -692,5 +750,6 @@ let tests = [
   "pin-install", (module Pin_install : TEST);
   "reinstall",   (module Reinstall   : TEST);
   "pin-advanced",(module Pin_advanced: TEST);
+  "dep-cycle",   (module Dep_cycle   : TEST);
   "big-upgrade", (module Big_upgrade : TEST);
 ]
