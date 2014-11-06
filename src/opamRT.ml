@@ -20,6 +20,8 @@ open OpamTypes
 open OpamTypesBase
 open OpamMisc.OP
 
+let exit = OpamGlobals.exit
+
 let log fmt =
   OpamGlobals.log "RT" fmt
 
@@ -150,6 +152,7 @@ let start_file_server repo =
   | _ -> ()
 
 module type TEST = sig
+  val name: string
   val init: OpamTypes.repository_kind option -> OpamFilename.Dir.t -> unit
   val run: OpamTypes.repository_kind option -> OpamFilename.Dir.t -> unit
 end
@@ -448,9 +451,12 @@ let test_reinstall_u path =
   check_installed path ~roots:[] [a-v 1];
   ()
 
+exception Not_available
+exception Allowed_failure
+
 let todo () =
   OpamGlobals.msg "%s\n" (Color.yellow "[TODO]");
-  exit 0
+  raise Not_available
 
 let check_and_run kind fn =
   match kind with
@@ -458,31 +464,37 @@ let check_and_run kind fn =
   | _          -> run fn
 
 module Repo_update : TEST = struct
+  let name = "repo-update"
   let init kind = run (init_repo_update_u kind)
   let run kind = run test_repo_update_u
 end
 
 module Dev_update : TEST = struct
+  let name = "dev-update"
   let init kind = check_and_run kind (init_dev_update_u kind)
   let run  kind = check_and_run kind test_dev_update_u
 end
 
 module Pin_update : TEST = struct
+  let name = "pin-update"
   let init kind = check_and_run kind (init_pin_update_u kind)
   let run  kind = check_and_run kind test_dev_update_u
 end
 
 module Pin_install : TEST = struct
+  let name = "pin-install"
   let init kind = check_and_run kind (init_pin_install_u kind)
   let run  kind = check_and_run kind test_pin_install_u
 end
 
 module Reinstall : TEST = struct
+  let name = "reinstall"
   let init kind = check_and_run kind (init_reinstall_u kind)
   let run  kind = check_and_run kind test_reinstall_u
 end
 
 module Dep_cycle : TEST = struct
+  let name = "dep-cycle"
 
   let init_u kind path =
     log "init-dep-cycle";
@@ -541,6 +553,7 @@ module Dep_cycle : TEST = struct
 end
 
 module Pin_advanced : TEST = struct
+  let name = "pin-advanced"
   let init kind = check_and_run kind (init_dev_update_u kind)
 
   let run_u path =
@@ -684,6 +697,8 @@ module Pin_advanced : TEST = struct
 end
 
 module Big_upgrade : TEST = struct
+  let name = "big-upgrade"
+
   let init kind path =
     log "init-big-upgrade %s\n" (OpamFilename.Dir.to_string path);
     let { repo; opam_root; contents_root } = create_config kind path in
@@ -740,16 +755,18 @@ module Big_upgrade : TEST = struct
     OPAM.upgrade opam_root ~fake:true [];
     try check_export opam_root (data "expected.export")
     with Failure _ when not (OpamCudf.external_solver_available ()) ->
-      OpamGlobals.note "Expected failure since the external solver is disabled"
+      OpamGlobals.note "Expected failure since the external solver is disabled";
+      raise Allowed_failure
 end
 
-let tests = [
-  "repo-update", (module Repo_update : TEST);
-  "dev-update",  (module Dev_update  : TEST);
-  "pin-update",  (module Pin_update  : TEST);
-  "pin-install", (module Pin_install : TEST);
-  "reinstall",   (module Reinstall   : TEST);
-  "pin-advanced",(module Pin_advanced: TEST);
-  "dep-cycle",   (module Dep_cycle   : TEST);
-  "big-upgrade", (module Big_upgrade : TEST);
-]
+let tests =
+  List.map (fun m -> let module M = (val m:TEST) in M.name, m) [
+    (module Repo_update : TEST);
+    (module Dev_update  : TEST);
+    (module Pin_update  : TEST);
+    (module Pin_install : TEST);
+    (module Reinstall   : TEST);
+    (module Pin_advanced: TEST);
+    (module Dep_cycle   : TEST);
+    (module Big_upgrade : TEST);
+  ]
