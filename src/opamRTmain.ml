@@ -91,15 +91,18 @@ let mk_opt ?section ?vopt flags value doc conv default =
   let doc = Arg.info ?docs:section ~docv:value ~doc flags in
   Arg.(value & opt ?vopt conv default & doc)
 
-let repo_kind_flag =
-  let kinds = [
-    (* main kinds *)
-    "http" , `http;
-    "local", `local;
-    "git"  , `git;
-    "darcs"  , `darcs;
-    "hg"   , `hg;
+let repo_kinds = [
+  "http" , `http;
+  "local", `local;
+  "git"  , `git;
+  "darcs", `darcs;
+  "hg"   , `hg;
+]
 
+let repo_kind_flag =
+  let kinds =
+    (* main kinds *)
+    repo_kinds @ [
     (* aliases *)
     "wget" , `http;
     "curl" , `http;
@@ -125,9 +128,56 @@ let init =
     set_seed seed;
     apply_data_dir data;
     let module Test = (val test: OpamRT.TEST) in
-    Test.init kind path in
+    try Test.init kind path with OpamRT.Not_available -> () in
   Term.(pure init $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
+
+let run_test test kind path =
+  let module Test = (val test: OpamRT.TEST) in
+  let result =
+    try Test.run kind path; `Ok with
+    | Sys.Break -> prerr_endline "[interrupted]"; `No_result
+    | OpamRT.Not_available -> `Skipped
+    | OpamRT.Allowed_failure -> `Allowed_fail
+    | OpamGlobals.Exit 0 -> `Ok
+    | e -> `Failed
+  in
+  let result_file = OpamFilename.of_string "results" in
+  let current =
+    if OpamFilename.exists result_file then
+      OpamMisc.split (OpamFilename.read result_file) '\n'
+    else []  in
+  let opam_version =
+    match OpamSystem.read_command_output ["opam"; "--git-version"] with
+    | [v] -> v
+    | _ -> "none"
+  in
+  let current = match current with
+    | title::results when title = opam_version -> List.rev results
+    | _ -> []
+  in
+  let title = Printf.sprintf "%-12s / %-5s / %-8s :" Test.name
+      (match kind with
+       | Some k -> List.assoc k (List.map (fun (a,b) -> b,a) repo_kinds)
+       | None -> "none")
+      (if OpamCudf.external_solver_available () then
+         OpamGlobals.get_external_solver ()
+       else "internal")
+  in
+  let current =
+    List.filter
+      (fun s -> not (OpamMisc.starts_with ~prefix:title s))
+      current
+  in
+  let results = match result with
+    | `Ok -> Printf.sprintf "%s\t%s" title "OK" :: current
+    | `Skipped -> Printf.sprintf "%s\t%s" title "SKIP" :: current
+    | `Failed -> Printf.sprintf "%s\t%s" title "FAIL" :: current
+    | `Allowed_fail -> Printf.sprintf "%s\t%s" title "FAILOK" :: current
+    | `No_result -> current
+  in
+  OpamFilename.write result_file
+    (String.concat "\n" (opam_version::(List.rev results)) ^ "\n")
 
 (* RUN *)
 let run_doc = "Run a given test suite."
@@ -143,8 +193,7 @@ let run =
   let run seed data kind path test =
     set_seed seed;
     apply_data_dir data;
-    let module Test = (val test: OpamRT.TEST) in
-    Test.run kind path in
+    run_test test kind path in
   Term.(pure run $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "run" ~doc ~man
 
@@ -166,8 +215,8 @@ let test =
     if OpamFilename.exists_dir path
     && OpamGlobals.confirm "Do you want to remove %s ?" (OpamFilename.Dir.to_string path)
     then OpamFilename.rmdir path;
-    Test.init kind path;
-    Test.run kind path in
+    (try Test.init kind path with OpamRT.Not_available -> ());
+    run_test test kind path in
   Term.(pure test $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "test" ~doc ~man
 
