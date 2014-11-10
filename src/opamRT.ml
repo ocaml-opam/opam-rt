@@ -20,6 +20,9 @@ open OpamTypes
 open OpamTypesBase
 open OpamMisc.OP
 
+exception Not_available
+exception Allowed_failure
+
 let exit = OpamGlobals.exit
 
 let log fmt =
@@ -69,7 +72,7 @@ let create_config kind path =
     | Some `http  -> "http://127.0.0.1:1234", None
     | Some `local
     | None        -> OpamFilename.Dir.to_string repo_root, None
-    | _           -> failwith "TODO" in
+    | _           -> raise Not_available in
   let repo_kind = OpamMisc.Option.default `local kind in
   let repo = {
     repo_name;
@@ -451,9 +454,6 @@ let test_reinstall_u path =
   check_installed path ~roots:[] [a-v 1];
   ()
 
-exception Not_available
-exception Allowed_failure
-
 let todo () =
   OpamGlobals.msg "%s\n" (Color.yellow "[TODO]");
   raise Not_available
@@ -732,8 +732,9 @@ module Big_upgrade : TEST = struct
     let exportfile = OpamFilename.of_string (OpamSystem.temp_file "opam-rt-export") in
     OPAM.export opam_root exportfile;
     let ret =
-      OpamProcess.run "diff"
-        (List.map OpamFilename.to_string [reference; exportfile]) in
+      OpamProcess.run
+        (OpamProcess.command "diff"
+           (List.map OpamFilename.to_string [reference; exportfile])) in
     if ret.OpamProcess.r_code = 0 then
       (OpamGlobals.msg "%s Export files matches reference\n"
          (Color.green "[OK]"))
