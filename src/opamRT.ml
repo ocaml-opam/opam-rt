@@ -83,13 +83,15 @@ let create_config kind path =
   } in
   { repo; opam_root; contents_root }
 
+let repo_config_file path name =
+  path / "repo" // (OpamRepositoryName.to_string name^".config")
+
 let read_config path =
   if not (OpamFilename.exists_dir path) then
     OpamGlobals.error_and_exit "opam-rt has not been initialized properly";
   let repo =
-    let root = path / "repo" in
-    let repo = OpamRepository.local root in
-    OpamFile.Repo_config.read (OpamPath.Repository.config repo) in
+    OpamFile.Repo_config.read
+      (repo_config_file path (OpamRepositoryName.of_string "base")) in
   let opam_root = path / "opam" in
   let contents_root = path / "contents" in
   { repo; opam_root; contents_root }
@@ -131,28 +133,31 @@ let check_installed path  ?(roots = []) wished_list =
 
 let update_server_index repo =
   match repo.repo_kind with
-  | `http -> OpamFilename.exec repo.repo_root [["opam-admin"; "make"; "--index"]]
+  | `http ->
+      OpamFilename.exec repo.repo_root [["opam-admin"; "make"; "--index"]]
   | _ -> ()
-
-let stop_file_server repo =
-  match repo.repo_kind with
-  | `http -> (try OpamSystem.command ["killall"; "file-server"] with _ -> ())
-  | _     -> ()
 
 let start_file_server repo =
   match repo.repo_kind with
   | `http ->
-    at_exit (fun () -> stop_file_server repo);
-    begin match Unix.fork () with
-      | -1  -> OpamGlobals.error_and_exit "Fork error"
-      | 0   ->
-        let cmd = Filename.concat (Sys.getcwd ()) "file-server" in
-        Unix.execvp cmd [|cmd; OpamFilename.Dir.to_string repo.repo_root|]
-      | pid ->
-        update_server_index repo;
-        Unix.sleep 2
-    end
-  | _ -> ()
+      let cmd = Filename.concat (Sys.getcwd ()) "file-server" in
+      OpamFilename.mkdir repo.repo_root;
+      update_server_index repo;
+      let dir = OpamFilename.Dir.to_string repo.repo_root in
+      let p =
+        OpamProcess.run_background
+          (OpamProcess.command ~dir cmd [OpamFilename.Dir.to_string repo.repo_root])
+      in
+      let stop () =
+        try
+          Unix.kill p.OpamProcess.p_pid Sys.sigterm;
+          ignore (OpamProcess.wait p)
+        with Unix.Unix_error _ -> ()
+      in
+      at_exit stop;
+      Unix.sleep 2;
+      stop
+  | _ -> fun () -> ()
 
 module type TEST = sig
   val name: string
@@ -169,8 +174,8 @@ let init_repo_update_u kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_repo_with_history repo contents_root;
-  OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
-  start_file_server repo;
+  OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
+  let stop_server = start_file_server repo in
   OpamGlobals.msg
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
@@ -178,7 +183,7 @@ let init_repo_update_u kind path =
   OPAM.install opam_root
     ~version:(OpamPackage.Version.of_string "1")
     (OpamPackage.Name.of_string "a");
-  stop_file_server repo
+  stop_server ()
 
 let init_dev_update_u contents_kind path =
   log "init-dev-update %s" (OpamFilename.Dir.to_string path);
@@ -187,7 +192,7 @@ let init_dev_update_u contents_kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
-  OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+  OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
   OPAM.init opam_root repo;
   OPAM.update opam_root
 
@@ -217,7 +222,7 @@ let init_pin_install_u contents_kind path =
     [ a1; a2; b1; b2 ]
   in
   List.iter (Packages.add repo contents_root) packages;
-  OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+  OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
   OPAM.init opam_root repo;
   OPAM.update opam_root;
   let config = read_config path in
@@ -247,7 +252,7 @@ let init_reinstall_u contents_kind path =
     [ a; b; c; d ]
   in
   List.iter (Packages.add repo contents_root) packages;
-  OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+  OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
   OPAM.init opam_root repo;
   OPAM.update opam_root
 
@@ -260,7 +265,7 @@ let test_repo_update_u path =
   log "test-repo-update %s" (OpamFilename.Dir.to_string path);
   let { repo; opam_root ; _ } = read_config path in
   let commits = Git.commits repo.repo_root in
-  start_file_server repo;
+  let stop_server = start_file_server repo in
 
   (* OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
   List.iter (fun commit ->
@@ -272,7 +277,7 @@ let test_repo_update_u path =
       Check.packages repo opam_root;
     ) (OpamRTinit.shuffle commits);
 
-  stop_file_server repo
+  stop_server ()
 
 (* Basic dev package update test: we install the two packages and
    update their contents *)
@@ -518,7 +523,7 @@ module Dep_cycle : TEST = struct
       [ a1; a2; b1; b2 ]
     in
     List.iter (Packages.add repo contents_root) packages;
-    OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+    OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
     OPAM.init opam_root repo;
     OPAM.update opam_root
 
@@ -702,7 +707,7 @@ module Big_upgrade : TEST = struct
   let init kind path =
     log "init-big-upgrade %s\n" (OpamFilename.Dir.to_string path);
     let { repo; opam_root; contents_root } = create_config kind path in
-    OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
+    OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
     OpamGlobals.msg
       "Creating a new repository in %s/ ...\n"
       (OpamFilename.Dir.to_string repo.repo_root);
@@ -710,7 +715,7 @@ module Big_upgrade : TEST = struct
     OpamSystem.in_dir (OpamFilename.Dir.to_string repo.repo_root) (fun () ->
         OpamSystem.command
           ["tar"; "xzf"; OpamFilename.to_string (data "repo_packages.tar.gz")]);
-    start_file_server repo;
+    let stop_server = start_file_server repo in
     Git.init repo.repo_root;
     let git_dir_re = Re_str.regexp "\\(.*/\\)?\\.git\\(/.*\\)?" in
     Git.add_list repo.repo_root
@@ -726,7 +731,7 @@ module Big_upgrade : TEST = struct
       (OpamFilename.Dir.to_string opam_root);
     OPAM.init opam_root repo;
     OPAM.import opam_root ~fake:true (data "init.export");
-    stop_file_server repo
+    stop_server ()
 
   let check_export opam_root reference =
     let exportfile = OpamFilename.of_string (OpamSystem.temp_file "opam-rt-export") in
@@ -749,14 +754,18 @@ module Big_upgrade : TEST = struct
     let { repo; opam_root; contents_root } = read_config path in
     let step = let i = ref 0 in
       fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    let stop_server = start_file_server repo in
     step "update";
     OPAM.update opam_root;
     check_export opam_root (data "init.export");
     step "upgrade";
     OPAM.upgrade opam_root ~fake:true [];
-    try check_export opam_root (data "expected.export")
+    try
+      check_export opam_root (data "expected.export");
+      stop_server ()
     with Failure _ when not (OpamCudf.external_solver_available ()) ->
       OpamGlobals.note "Expected failure since the external solver is disabled";
+      stop_server ();
       raise Allowed_failure
 end
 
