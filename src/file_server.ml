@@ -42,9 +42,10 @@ let make_server root port =
     let path = Re_str.split_delim (Re_str.regexp_string "/") path in
     let path = List.filter ((<>) "") path in
     process root path in
-  let conn_closed _ () = () in
-  let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
-  Cohttp_lwt_unix.Server.create ~address:"127.0.0.1" ~port config
+  let conn_closed _ = () in
+  let config = Cohttp_lwt_unix.Server.make ~conn_closed ~callback () in
+  let server = `TCP (`Port port) in
+  Cohttp_lwt_unix.Server.create ~mode:server config
 
 let () =
   if Array.length Sys.argv <> 2 then (
