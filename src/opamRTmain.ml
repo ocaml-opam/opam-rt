@@ -177,7 +177,8 @@ let run_test test kind path =
     | `No_result -> current
   in
   OpamFilename.write result_file
-    (String.concat "\n" (opam_version::(List.rev results)) ^ "\n")
+    (String.concat "\n" (opam_version::(List.rev results)) ^ "\n");
+  if result = `Failed then OpamGlobals.exit 1
 
 (* RUN *)
 let run_doc = "Run a given test suite."

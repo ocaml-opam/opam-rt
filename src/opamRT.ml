@@ -595,7 +595,7 @@ module Pin_advanced : TEST = struct
          so remove the whole directory. *)
       let opam = OpamFile.OPAM.with_remove opam
           [[CString "rm",None; CString "-rf",None;
-            CString ("%{"^this^":share}%/"), None],None] in
+            CString ("%{"^this^":share}%"), None],None] in
       OpamFile.OPAM.write file opam
     in
     let tests pin_update pin_target pin_kind pin_version =

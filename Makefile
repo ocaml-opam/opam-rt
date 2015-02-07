@@ -18,25 +18,29 @@ show_results = @sed -e 's/\tOK/\t[32mOK[m/' -e 's/\tFAILOK/\t[33mFAILOK[m/' 
 
 .PHONY: $(KINDS)
 $(KINDS):
-	for test in $(shell $(OPAMRT) list); do \
+	@rm -f failed
+	@for test in $(shell $(OPAMRT) list); do \
 	  ( echo "TEST:" $$test-$@ && \
 	    $(OPAMRT) test $(TESTDIR) $$test --kind $@) \
-	  || true; \
+	  || touch failed; \
 	done;
 	@echo
 	$(show_results)
+	@if [ -e failed ]; then rm failed; false; fi
 
 run: opam-rt
+	@rm -f failed
 	@for kind in $(KINDS); do \
 	  for test in $(shell $(OPAMRT) list); do \
 	    ( echo "TEST:" $$test-$$kind && \
 	      $(OPAMRT) test $(TESTDIR) $$test --kind $$kind) \
-	    || true; \
+	    || touch failed; \
 	  done; \
 	done;
 	@echo
 	@echo "================ RESULTS ==============="
 	$(show_results)
+	@if [ -e failed ]; then rm failed; false; fi
 
 clean:
 	rm -rf _build opam-rt file-server $(TESTDIR)
