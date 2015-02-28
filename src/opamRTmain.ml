@@ -161,7 +161,9 @@ let run_test test kind path =
        | Some k -> List.assoc k (List.map (fun (a,b) -> b,a) repo_kinds)
        | None -> "none")
       (if OpamCudf.external_solver_available () then
-         OpamGlobals.get_external_solver ()
+         String.concat " "
+           (OpamGlobals.external_solver
+              ~input:"$in" ~output:"$out" ~criteria:"$criteria")
        else "internal")
   in
   let current =
