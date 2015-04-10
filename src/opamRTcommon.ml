@@ -16,7 +16,7 @@
 
 open OpamTypes
 open OpamTypesBase
-open OpamFilename.OP
+open OpamFilename.Op
 
 let seed_ref =
   ref 1664
@@ -76,19 +76,21 @@ module Git = struct
           exec repo [ "git"; "add"; file ];
           exec repo [ "git"; "commit"; "-m"; msg; file; "--allow-empty" ];
         else
-          OpamGlobals.error_and_exit "Cannot commit %s" (OpamFilename.to_string file);
+          OpamConsole.error_and_exit "Cannot commit %s" (OpamFilename.to_string file);
       ) fmt
 
   let commit_dir repo dir fmt =
     Printf.kprintf (fun msg ->
         if OpamFilename.exists_dir dir then
           let dir =
-            OpamMisc.remove_prefix ~prefix:(OpamFilename.to_string (repo//""))
+            OpamStd.String.remove_prefix
+              ~prefix:(OpamFilename.to_string (repo//""))
               (OpamFilename.Dir.to_string dir) in
           exec repo [ "git"; "add"; "--all"; dir ];
           exec repo [ "git"; "commit"; "-m"; msg; "--allow-empty" ];
         else
-          OpamGlobals.error_and_exit "Cannot commit %s" (OpamFilename.Dir.to_string dir);
+          OpamConsole.error_and_exit "Cannot commit %s"
+            (OpamFilename.Dir.to_string dir);
       ) fmt
 
   let revision repo =
@@ -138,7 +140,7 @@ module Git = struct
 
   let msg repo commit package fmt =
     Printf.kprintf (fun str ->
-        OpamGlobals.msg "%-25s %s     %-10s %-30s\n"
+        OpamConsole.msg "%-25s %s     %-10s %-30s\n"
           (OpamFilename.Dir.to_string repo)
           commit
           (OpamPackage.to_string package)
@@ -159,7 +161,7 @@ let base = OpamFilename.Base.of_string
 
 module Contents = struct
 
-  let log = OpamGlobals.log "CONTENTS"
+  let log = OpamConsole.log "CONTENTS"
 
   type t = (basename * string) list
 
@@ -211,7 +213,7 @@ end
 
 module Packages = struct
 
-  let log = OpamGlobals.log "PACKAGES"
+  let log = OpamConsole.log "PACKAGES"
 
   open OpamFile
 
@@ -302,11 +304,11 @@ module Packages = struct
              (base "k/1", random_string (i*2), 0o644) ]
 
   let file_list repo prefix nv =
-    let opam = OpamPath.Repository.opam repo prefix nv in
-    let descr = OpamPath.Repository.descr repo prefix nv in
-    let url = OpamPath.Repository.url repo prefix nv in
-    let files = OpamPath.Repository.files repo prefix nv in
-    let archive = OpamPath.Repository.archive repo nv in
+    let opam = OpamRepositoryPath.opam repo prefix nv in
+    let descr = OpamRepositoryPath.descr repo prefix nv in
+    let url = OpamRepositoryPath.url repo prefix nv in
+    let files = OpamRepositoryPath.files repo prefix nv in
+    let archive = OpamRepositoryPath.archive repo nv in
     opam, descr, url, files, archive
 
   let file_list_of_t repo t =
@@ -384,7 +386,7 @@ let read_url opam_root nv =
   let read file =
     if OpamFilename.exists file then Some (OpamFile.URL.read file) else None in
   let name = OpamPackage.name nv in
-  let overlay_url = OpamPath.Switch.Overlay.url opam_root OpamSwitch.default name in
+  let overlay_url = OpamPath.Switch.Overlay.url opam_root OpamSwitch.system name in
   let url = OpamPath.url opam_root nv in
   match read overlay_url with
   | Some u -> Some u
@@ -397,12 +399,12 @@ module OPAM = struct
 
   let opam ?(fake=false) ?(env=[]) opam_root command args =
     let env = "OPAMNOBASEPACKAGES=1" :: env in
-    OpamGlobals.msg "%s\n"
+    OpamConsole.msg "%s\n"
       (Color.blue ">> %s opam %s %s "
          (String.concat ";" env)
          command
          (String.concat " " args));
-    let debug = if !OpamGlobals.debug then ["--debug"] else [] in
+    let debug = if OpamConsole.debug() then ["--debug"] else [] in
     OpamSystem.command
       ~env:(Array.concat [Unix.environment(); Array.of_list env])
       ("opam" :: command ::
@@ -421,7 +423,7 @@ module OPAM = struct
 
   let init opam_root repo =
     let kind = string_of_repository_kind repo.repo_kind in
-    OpamGlobals.sync_archives := true;
+    OpamClientConfig.update ~sync_archives:true ();
     opam opam_root "init" [
       OpamRepositoryName.to_string repo.repo_name;
       string_of_address repo.repo_address;
@@ -477,7 +479,7 @@ module OPAM = struct
   let pin_edit opam_root ?(action=false) name write_file =
     let f = OpamSystem.temp_file "opamRT" in
     write_file (OpamFilename.of_string f);
-    let env = [Printf.sprintf "OPAM_EDITOR=cp -f %s" f] in
+    let env = [Printf.sprintf "OPAMEDITOR=cp -f %s" f] in
     opam opam_root ~env "pin"
       (["edit"; OpamPackage.Name.to_string name]
        @ if action then [] else ["-n"])
@@ -502,7 +504,7 @@ module Check = struct
   exception Sync_errors of error list
 
   let sync_errors errors =
-    OpamGlobals.header_error "Sync mismatch" "%s"
+    OpamConsole.header_error "Sync mismatch" "%s"
       (String.concat "\n"
          (List.map (fun { source; attr; file } ->
               Printf.sprintf "%s: %s\n  %s: %S\n"
@@ -559,7 +561,7 @@ module Check = struct
     check_attributes (n1, a1) (n2, a2)
 
   let installed root =
-    let file = OpamPath.Switch.installed root OpamSwitch.default in
+    let file = OpamPath.Switch.installed root OpamSwitch.system in
     OpamFile.Installed.safe_read file
 
   let package_of_filename file =
@@ -574,7 +576,7 @@ module Check = struct
 
   let package_of_archivename file =
     let base = OpamFilename.Base.to_string (OpamFilename.basename file) in
-    match OpamMisc.cut_at base '+' with
+    match OpamStd.String.cut_at base '+' with
     | None        -> assert false
     | Some (nv,_) -> OpamPackage.of_string nv
 
@@ -586,7 +588,7 @@ module Check = struct
     OpamPackage.Set.iter (fun nv ->
         let file = OpamPath.opam root nv in
         if not (OpamFilename.exists file) && OpamPackage.Map.mem nv package_index then
-          OpamGlobals.error_and_exit
+          OpamConsole.error_and_exit
             "fatal: %s is missing" (OpamFilename.prettify file)
       ) installed
 
@@ -594,11 +596,11 @@ module Check = struct
     (* invariants *)
     check_invariants root;
     (* metadata *)
-    let r = OpamPath.Repository.packages_dir repo in
+    let r = OpamRepositoryPath.packages_dir repo in
     let o = OpamPath.packages_dir root in
     let installed = installed root in
     if OpamPackage.Set.is_empty installed then
-      OpamGlobals.error_and_exit
+      OpamConsole.error_and_exit
         "No package are installed. Tests are meaningless, stopping.";
     let filter file =
       let dirname, nv = package_of_filename file in
@@ -606,7 +608,7 @@ module Check = struct
       else None in
     check_dirs ~filter ("repo", r) ("opam", o);
     (* archives *)
-    let r = OpamPath.Repository.archives_dir repo in
+    let r = OpamRepositoryPath.archives_dir repo in
     let o = OpamPath.archives_dir root in
     let filter file =
       let nv = package_of_archivename file in
@@ -618,7 +620,7 @@ module Check = struct
 
   let files_dir opam_root nv =
     let d2 =
-      OpamPath.Switch.Overlay.files opam_root OpamSwitch.default (OpamPackage.name nv) in
+      OpamPath.Switch.Overlay.files opam_root OpamSwitch.system (OpamPackage.name nv) in
     let d3 = OpamPath.files opam_root nv in
     if OpamFilename.exists_dir d2 then Some d2
     else if OpamFilename.exists_dir d3 then Some d3
@@ -629,14 +631,14 @@ module Check = struct
     let opam =
       let name = OpamPackage.name nv in
       let libs =
-        OpamPath.Switch.lib opam_root OpamSwitch.default name in
+        OpamPath.Switch.lib opam_root OpamSwitch.system name in
       let bins =
-        OpamPath.Switch.bin opam_root OpamSwitch.default in
+        OpamPath.Switch.bin opam_root OpamSwitch.system in
       A.Map.union
         (fun x y -> failwith "union")
         (attributes
            ~filter:(fun f ->
-               if f <> OpamPath.Switch.config opam_root OpamSwitch.default name
+               if f <> OpamPath.Switch.config opam_root OpamSwitch.system name
                then Some libs else None)
            libs)
         (attributes bins) in

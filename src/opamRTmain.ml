@@ -27,7 +27,7 @@ let help_sections = [
   `P "These options are common to all commands.";
 
   `S "FURTHER DOCUMENTATION";
-  `P (Printf.sprintf "See %s." OpamGlobals.default_repository_address);
+  `P (Printf.sprintf "See https://opam.ocaml.org.");
 
   `S "AUTHOR";
   `P "Thomas Gazagnaire   <thomas.gazagnaire@ocamlpro.com>"; `Noblank;
@@ -139,13 +139,13 @@ let run_test test kind path =
     | Sys.Break -> prerr_endline "[interrupted]"; `No_result
     | OpamRT.Not_available -> `Skipped
     | OpamRT.Allowed_failure -> `Allowed_fail
-    | OpamGlobals.Exit 0 -> `Ok
+    | OpamStd.Sys.Exit 0 -> `Ok
     | e -> `Failed
   in
   let result_file = OpamFilename.of_string "results" in
   let current =
     if OpamFilename.exists result_file then
-      OpamMisc.split (OpamFilename.read result_file) '\n'
+      OpamStd.String.split (OpamFilename.read result_file) '\n'
     else []  in
   let opam_version =
     match OpamSystem.read_command_output ["opam"; "--git-version"] with
@@ -160,15 +160,15 @@ let run_test test kind path =
       (match kind with
        | Some k -> List.assoc k (List.map (fun (a,b) -> b,a) repo_kinds)
        | None -> "none")
-      (if OpamCudf.external_solver_available () then
-         String.concat " "
-           (OpamGlobals.external_solver
-              ~input:"$in" ~output:"$out" ~criteria:"$criteria")
-       else "internal")
+      (match OpamSolverGlobals.external_solver_command
+               ~input:"$in" ~output:"$out" ~criteria:"$criteria"
+       with
+       | Some s -> String.concat " " s
+       | None -> "internal")
   in
   let current =
     List.filter
-      (fun s -> not (OpamMisc.starts_with ~prefix:title s))
+      (fun s -> not (OpamStd.String.starts_with ~prefix:title s))
       current
   in
   let results = match result with
@@ -180,7 +180,7 @@ let run_test test kind path =
   in
   OpamFilename.write result_file
     (String.concat "\n" (opam_version::(List.rev results)) ^ "\n");
-  if result = `Failed then OpamGlobals.exit 1
+  if result = `Failed then OpamStd.Sys.exit 1
 
 (* RUN *)
 let run_doc = "Run a given test suite."
@@ -216,7 +216,7 @@ let test =
     set_seed seed;
     let module Test = (val test: OpamRT.TEST) in
     if OpamFilename.exists_dir path
-    && OpamGlobals.confirm "Do you want to remove %s ?" (OpamFilename.Dir.to_string path)
+    && OpamConsole.confirm "Do you want to remove %s ?" (OpamFilename.Dir.to_string path)
     then OpamFilename.rmdir path;
     (try Test.init kind path with OpamRT.Not_available -> ());
     run_test test kind path in
@@ -246,7 +246,7 @@ let default =
   ] @  help_sections
   in
   let usage () =
-    OpamGlobals.msg
+    OpamConsole.msg
       "usage: opam-rt [--version]\n\
       \               [--help]\n\
       \               <command> [<args>]\n\
@@ -277,35 +277,38 @@ let _ =
   Unix.umask 0o022
 
 let () =
-  Sys.catch_break true;
-  let _ = Sys.signal Sys.sigpipe Sys.Signal_ignore in
+  OpamSystem.init ();
+  OpamGlobals.init_config () ();
+  OpamDownload.init_config () ();
+  OpamSolverGlobals.init_config () ();
+  OpamClientGlobals.init_config () ();
   try
     match Term.eval_choice ~catch:false default commands with
     | `Error _ -> exit 1
     | _        -> exit 0
   with
-  | OpamGlobals.Exit 0 -> ()
-  | OpamGlobals.Exec (cmd,args,env) ->
+  | OpamStd.Sys.Exit 0 -> ()
+  | OpamStd.Sys.Exec (cmd,args,env) ->
     Unix.execvpe cmd args env
   | e                  ->
-    if !OpamGlobals.verbose then
+    if OpamConsole.verbose () then
       Printf.eprintf "'%s' failed.\n" (String.concat " " (Array.to_list Sys.argv));
     let exit_code = ref 1 in
     begin match e with
-      | OpamGlobals.Exit i ->
+      | OpamStd.Sys.Exit i ->
         exit_code := i;
-        if !OpamGlobals.debug && i <> 0 then
-          Printf.eprintf "%s" (OpamMisc.pretty_backtrace e)
+        if OpamConsole.debug () && i <> 0 then
+          Printf.eprintf "%s" (OpamStd.Exn.pretty_backtrace e)
       | OpamSystem.Internal_error _
       | OpamSystem.Process_error _ ->
         Printf.eprintf "%s\n" (Printexc.to_string e);
-        Printf.eprintf "%s" (OpamMisc.pretty_backtrace e);
+        Printf.eprintf "%s" (OpamStd.Exn.pretty_backtrace e);
       | Sys.Break -> exit_code := 130
       | Failure msg ->
         Printf.eprintf "Fatal error: %s\n" msg;
-        Printf.eprintf "%s" (OpamMisc.pretty_backtrace e);
+        Printf.eprintf "%s" (OpamStd.Exn.pretty_backtrace e);
       | _ ->
         Printf.eprintf "Fatal error:\n%s\n" (Printexc.to_string e);
-        Printf.eprintf "%s" (OpamMisc.pretty_backtrace e);
+        Printf.eprintf "%s" (OpamStd.Exn.pretty_backtrace e);
     end;
     exit !exit_code

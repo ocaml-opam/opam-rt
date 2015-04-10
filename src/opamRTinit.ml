@@ -16,7 +16,7 @@
 
 open OpamRTcommon
 open OpamTypes
-open OpamFilename.OP
+open OpamFilename.Op
 
 let shuffle l =
   let a = Array.init (List.length l) (fun _ -> None) in

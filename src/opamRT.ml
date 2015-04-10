@@ -14,38 +14,38 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open OpamFilename.OP
+open OpamFilename.Op
 open OpamRTcommon
 open OpamTypes
 open OpamTypesBase
-open OpamMisc.OP
+open OpamStd.Op
 
 exception Not_available
 exception Allowed_failure
 
-let exit = OpamGlobals.exit
+let exit = OpamStd.Sys.exit
 
 let log fmt =
-  OpamGlobals.log "RT" fmt
+  OpamConsole.log "RT" fmt
 
 let ok () =
-  OpamGlobals.msg "%s\n%!" (Color.green "[SUCCESS]")
+  OpamConsole.msg "%s\n%!" (Color.green "[SUCCESS]")
 
 let error e =
-  OpamGlobals.msg "%s\n%s %s\n%!"
+  OpamConsole.msg "%s\n%s %s\n%!"
     (Printexc.to_string e)
     (Color.red "[ERROR]")
     (String.concat " " (Array.to_list Sys.argv));
   exit 1
 
 let newline () =
-  OpamGlobals.msg "\n"
+  OpamConsole.msg "\n"
 
 let run f x =
   let seed = OpamRTcommon.seed () in
   Random.init seed;
   try
-    OpamGlobals.msg "SEED %d\n" seed;
+    OpamConsole.msg "SEED %d\n" seed;
     f x;
     newline ();
     ok ()
@@ -61,7 +61,7 @@ type config = {
 
 let create_config kind path =
   if OpamFilename.exists_dir path then
-    OpamGlobals.error_and_exit "%s already exists." (OpamFilename.Dir.to_string path);
+    OpamConsole.error_and_exit "%s already exists." (OpamFilename.Dir.to_string path);
   OpamFilename.mkdir path;
   let repo_name = OpamRepositoryName.of_string "base" in
   let repo_root = path / "repo" in
@@ -73,7 +73,7 @@ let create_config kind path =
     | Some `local
     | None        -> OpamFilename.Dir.to_string repo_root, None
     | _           -> raise Not_available in
-  let repo_kind = OpamMisc.Option.default `local kind in
+  let repo_kind = OpamStd.Option.default `local kind in
   let repo = {
     repo_name;
     repo_root;
@@ -88,7 +88,7 @@ let repo_config_file path name =
 
 let read_config path =
   if not (OpamFilename.exists_dir path) then
-    OpamGlobals.error_and_exit "opam-rt has not been initialized properly";
+    OpamConsole.error_and_exit "opam-rt has not been initialized properly";
   let repo =
     OpamFile.Repo_config.read
       (repo_config_file path (OpamRepositoryName.of_string "base")) in
@@ -101,9 +101,9 @@ let read_installed path =
   let opam_root = path / "opam" in
   {
     installed = OpamFile.Installed.read
-        (OpamPath.Switch.installed opam_root OpamSwitch.default);
+        (OpamPath.Switch.installed opam_root OpamSwitch.system);
     installed_roots = OpamFile.Installed_roots.read
-        (OpamPath.Switch.installed_roots opam_root OpamSwitch.default);
+        (OpamPath.Switch.installed_roots opam_root OpamSwitch.system);
   }
 
 let check_installed path  ?(roots = []) wished_list =
@@ -121,11 +121,11 @@ let check_installed path  ?(roots = []) wished_list =
   if OpamPackage.Set.compare installed wished_installed = 0
   && (roots = [] || OpamPackage.Set.compare wished_roots installed_roots = 0)
   then
-    OpamGlobals.msg "%s installed: %s\n"
+    OpamConsole.msg "%s installed: %s\n"
       (Color.green "[OK]")
       (pkg_list installed_roots wished_list)
   else
-    (OpamGlobals.msg "%s installed: %s\n       expecting: %s\n"
+    (OpamConsole.msg "%s installed: %s\n       expecting: %s\n"
        (Color.red "[FAIL]")
        (pkg_list installed_roots (OpamPackage.Set.elements installed))
        (pkg_list wished_roots wished_list);
@@ -170,13 +170,13 @@ end
 let init_repo_update_u kind path =
   log "init-repo-update %s\n" (OpamFilename.Dir.to_string path);
   let { repo; opam_root; contents_root } = create_config kind path in
-  OpamGlobals.msg
+  OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_repo_with_history repo contents_root;
   OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
   let stop_server = start_file_server repo in
-  OpamGlobals.msg
+  OpamConsole.msg
     "Initializing an OPAM instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
   OPAM.init opam_root repo;
@@ -188,7 +188,7 @@ let init_repo_update_u kind path =
 let init_dev_update_u contents_kind path =
   log "init-dev-update %s" (OpamFilename.Dir.to_string path);
   let { repo; opam_root; contents_root } = create_config (Some `local)  path in
-  OpamGlobals.msg
+  OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
@@ -202,13 +202,13 @@ let init_pin_update_u contents_kind path =
   let config = read_config path in
   let pindir = config.contents_root / "a.0" in
   OpamFilename.move_dir (config.contents_root / "a.1") pindir;
-  OpamGlobals.msg "Pinning a ...\n";
+  OpamConsole.msg "Pinning a ...\n";
   OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
 
 let init_pin_install_u contents_kind path =
   log "init-pin-install";
   let { repo; opam_root; contents_root } = create_config (Some `local)  path in
-  OpamGlobals.msg
+  OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
@@ -228,13 +228,13 @@ let init_pin_install_u contents_kind path =
   let config = read_config path in
   let pindir = config.contents_root / "a.pinned" in
   OpamFilename.copy_dir ~src:(config.contents_root / "a.1") ~dst:pindir;
-  OpamGlobals.msg "Pinning a ...\n";
+  OpamConsole.msg "Pinning a ...\n";
   OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
 
 let init_reinstall_u contents_kind path =
   log "init-pin-install";
   let { repo; opam_root; contents_root } = create_config (Some `local)  path in
-  OpamGlobals.msg
+  OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
@@ -267,9 +267,9 @@ let test_repo_update_u path =
   let commits = Git.commits repo.repo_root in
   let stop_server = start_file_server repo in
 
-  (* OpamGlobals.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
+  (* OpamConsole.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
   List.iter (fun commit ->
-      OpamGlobals.msg "%s\n" (Color.yellow "*** %s ***" commit);
+      OpamConsole.msg "%s\n" (Color.yellow "*** %s ***" commit);
       Git.checkout repo.repo_root commit;
       Git.branch repo.repo_root;
       update_server_index repo;
@@ -292,14 +292,14 @@ let test_dev_update_u path =
       | Some u ->
         let dir = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
         if not (OpamFilename.exists_dir dir) then
-          OpamGlobals.error_and_exit "Missing contents folder: %s"
+          OpamConsole.error_and_exit "Missing contents folder: %s"
             (OpamFilename.Dir.to_string dir);
         (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
     ) packages [] in
 
   (* install the packages *)
   List.iter (fun (nv, _) ->
-      OpamGlobals.msg "Installing %s.\n" (OpamPackage.to_string nv);
+      OpamConsole.msg "Installing %s.\n" (OpamPackage.to_string nv);
       OPAM.remove opam_root (OpamPackage.name nv);
       OPAM.install opam_root (OpamPackage.name nv);
     ) packages;
@@ -307,7 +307,7 @@ let test_dev_update_u path =
   (* update and check *)
   List.iter (fun (nv, (dir, commits)) ->
       List.iter (fun commit ->
-          OpamGlobals.msg "%s\n"
+          OpamConsole.msg "%s\n"
             (Color.yellow "%s %s" (OpamPackage.to_string nv) commit);
           Git.checkout dir commit;
           Git.branch dir;
@@ -326,12 +326,12 @@ let test_pin_install_u path =
   let v version = OpamPackage.Version.of_string (string_of_int version) in
   let (-) = OpamPackage.create in
   let overlay name =
-    OpamPath.Switch.Overlay.opam opam_root OpamSwitch.default name in
+    OpamPath.Switch.Overlay.opam opam_root OpamSwitch.system name in
   let map_overlay f pkg =
     let o = overlay pkg in
     OpamFile.OPAM.write o (f (OpamFile.OPAM.read o)) in
   let step = let i = ref 0 in
-    fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
   step "Install b (version 2)";
   OPAM.install opam_root b;
   check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
@@ -388,7 +388,7 @@ let test_reinstall_u path =
   let (-) = OpamPackage.create in
   let pkg name = name - v 1 in
   let step = let i = ref 0 in
-    fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
   step "Install d";
   OPAM.install opam_root d;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
@@ -460,7 +460,7 @@ let test_reinstall_u path =
   ()
 
 let todo () =
-  OpamGlobals.msg "%s\n" (Color.yellow "[TODO]");
+  OpamConsole.msg "%s\n" (Color.yellow "[TODO]");
   raise Not_available
 
 let check_and_run kind fn =
@@ -505,7 +505,7 @@ module Dep_cycle : TEST = struct
     log "init-dep-cycle";
     let { repo; opam_root; contents_root } =
       create_config (Some `local)  path in
-    OpamGlobals.msg
+    OpamConsole.msg
       "Creating a new repository in %s/ ...\n"
       (OpamFilename.Dir.to_string repo.repo_root);
     OpamRTinit.create_simple_repo repo contents_root kind;
@@ -536,7 +536,7 @@ module Dep_cycle : TEST = struct
     let v version = OpamPackage.Version.of_string (string_of_int version) in
     let (-) = OpamPackage.create in
     let step = let i = ref 0 in
-      fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+      fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
     step "Install a1";
     OPAM.install opam_root a ~version:(v 1);
     check_installed path [a-v 1;b-v 1];
@@ -568,7 +568,7 @@ module Pin_advanced : TEST = struct
     let v version = OpamPackage.Version.of_string (string_of_int version) in
     let (-) = OpamPackage.create in
     let step = let i = ref 0 in
-      fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+      fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
     let check_pkg_shares pkg files =
       let files = List.sort compare files in
       let dir =
@@ -579,7 +579,7 @@ module Pin_advanced : TEST = struct
                              (OpamFilename.remove_prefix dir)
                              (OpamFilename.rec_files dir)) in
       if files <> found_files then
-        (OpamGlobals.error "Installed files in %s don't match:\n  - found    %s\n  - expected %s"
+        (OpamConsole.error "Installed files in %s don't match:\n  - found    %s\n  - expected %s"
            (OpamFilename.Dir.to_string dir)
            (String.concat " " found_files) (String.concat ", " files);
          failwith "Bad installed files")
@@ -662,7 +662,7 @@ module Pin_advanced : TEST = struct
       OPAM.remove opam_root a
     in
 
-    OpamGlobals.header_msg "Local pin";
+    OpamConsole.header_msg "Local pin";
     let pindir = contents_root / "pins" in
     OpamFilename.mkdir pindir;
     OpamFilename.copy_dir ~src:(contents_root / "a.1") ~dst:(pindir / "a");
@@ -677,7 +677,7 @@ module Pin_advanced : TEST = struct
       "path"
       (v 5);
 
-    OpamGlobals.header_msg "Git pin";
+    OpamConsole.header_msg "Git pin";
     let pindir = contents_root / "git-pins" in
     OpamFilename.mkdir pindir;
     let pin_update name f =
@@ -708,7 +708,7 @@ module Big_upgrade : TEST = struct
     log "init-big-upgrade %s\n" (OpamFilename.Dir.to_string path);
     let { repo; opam_root; contents_root } = create_config kind path in
     OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
-    OpamGlobals.msg
+    OpamConsole.msg
       "Creating a new repository in %s/ ...\n"
       (OpamFilename.Dir.to_string repo.repo_root);
     OpamFilename.mkdir repo.repo_root;
@@ -719,14 +719,14 @@ module Big_upgrade : TEST = struct
     Git.init repo.repo_root;
     let git_dir_re = Re_str.regexp "\\(.*/\\)?\\.git\\(/.*\\)?" in
     Git.add_list repo.repo_root
-      (OpamMisc.filter_map (fun f ->
+      (OpamStd.List.filter_map (fun f ->
            if Re_str.string_match git_dir_re f 0 then None
            else Some (OpamFilename.of_string f))
           (OpamSystem.rec_files
              (OpamFilename.Dir.to_string repo.repo_root)));
     Git.commit repo.repo_root "Init repo from stored data";
     Git.branch repo.repo_root;
-    OpamGlobals.msg
+    OpamConsole.msg
       "Initializing an OPAM instance in %s/ ...\n"
       (OpamFilename.Dir.to_string opam_root);
     OPAM.init opam_root repo;
@@ -741,10 +741,10 @@ module Big_upgrade : TEST = struct
         (OpamProcess.command "diff"
            (List.map OpamFilename.to_string [reference; exportfile])) in
     if ret.OpamProcess.r_code = 0 then
-      (OpamGlobals.msg "%s Export files matches reference\n"
+      (OpamConsole.msg "%s Export files matches reference\n"
          (Color.green "[OK]"))
     else
-      (OpamGlobals.msg "%s Export file differs from %s\n"
+      (OpamConsole.msg "%s Export file differs from %s\n"
          (Color.red "[FAIL]")
          (OpamFilename.to_string reference);
        failwith "Installed packages don't match expectations")
@@ -753,7 +753,7 @@ module Big_upgrade : TEST = struct
     log "test-big-upgrade %s" (OpamFilename.Dir.to_string path);
     let { repo; opam_root; contents_root } = read_config path in
     let step = let i = ref 0 in
-      fun msg -> incr i; OpamGlobals.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+      fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
     let stop_server = start_file_server repo in
     step "update";
     OPAM.update opam_root;
@@ -764,7 +764,7 @@ module Big_upgrade : TEST = struct
       check_export opam_root (data "expected.export");
       stop_server ()
     with Failure _ when not (OpamCudf.external_solver_available ()) ->
-      OpamGlobals.note "Expected failure since the external solver is disabled";
+      OpamConsole.note "Expected failure since the external solver is disabled";
       stop_server ();
       raise Allowed_failure
 end
