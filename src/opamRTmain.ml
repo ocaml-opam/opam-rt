@@ -160,7 +160,7 @@ let run_test test kind path =
       (match kind with
        | Some k -> List.assoc k (List.map (fun (a,b) -> b,a) repo_kinds)
        | None -> "none")
-      (match OpamSolverGlobals.external_solver_command
+      (match OpamSolverConfig.external_solver_command
                ~input:"$in" ~output:"$out" ~criteria:"$criteria"
        with
        | Some s -> String.concat " " s
@@ -278,10 +278,10 @@ let _ =
 
 let () =
   OpamSystem.init ();
-  OpamGlobals.init_config () ();
-  OpamDownload.init_config () ();
-  OpamSolverGlobals.init_config () ();
-  OpamClientGlobals.init_config () ();
+  OpamStd.Config.init ();
+  OpamRepositoryConfig.init ();
+  OpamSolverConfig.init ();
+  OpamClientConfig.init ();
   try
     match Term.eval_choice ~catch:false default commands with
     | `Error _ -> exit 1
