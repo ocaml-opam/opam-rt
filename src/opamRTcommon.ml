@@ -631,14 +631,15 @@ module Check = struct
     let opam =
       let name = OpamPackage.name nv in
       let libs =
-        OpamPath.Switch.lib opam_root OpamSwitch.system name in
+        OpamPath.Switch.Default.lib opam_root OpamSwitch.system name in
       let bins =
-        OpamPath.Switch.bin opam_root OpamSwitch.system in
+        OpamPath.Switch.Default.bin opam_root OpamSwitch.system in
       A.Map.union
         (fun x y -> failwith "union")
         (attributes
            ~filter:(fun f ->
-               if f <> OpamPath.Switch.config opam_root OpamSwitch.system name
+               if f <> OpamPath.Switch.Default.config
+                    opam_root OpamSwitch.system name
                then Some libs else None)
            libs)
         (attributes bins) in
