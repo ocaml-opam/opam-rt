@@ -266,7 +266,7 @@ module Packages = struct
 
   let descr = function
     | 0 -> None
-    | i -> Some (Descr.of_string (Printf.sprintf "This is a very nice package (%d)!" i))
+    | i -> Some (Descr.create (Printf.sprintf "This is a very nice package (%d)!" i))
 
   let archive contents nv seed =
     match seed with
