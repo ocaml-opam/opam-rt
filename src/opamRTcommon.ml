@@ -261,7 +261,7 @@ module Packages = struct
         | Some `local -> `local, (OpamFilename.Dir.to_string path, None)
         | _           -> failwith "TODO" in
       let url = URL.create kind path in
-      let checksum = Printf.sprintf "checksum-%d" i in
+      let checksum = Printf.sprintf "%032d" i in
       Some (URL.with_checksum url checksum)
 
   let descr = function
