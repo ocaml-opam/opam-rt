@@ -50,7 +50,7 @@ let package name version contents_kind contents_root ?(gener_archive=true) seed 
   })
 
 let a1 contents_root =
-  package "a" 1 (Some `local) contents_root
+  package "a" 1 (Some `rsync) contents_root
 
 let a2 contents_root =
   package "a" 2 (Some `git) contents_root

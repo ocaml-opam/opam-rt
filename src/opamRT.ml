@@ -67,19 +67,26 @@ let create_config kind path =
   let repo_root = path / "repo" in
   let opam_root = path / "opam" in
   let contents_root = path / "contents" in
-  let repo_address = match kind with
-    | Some `git   -> OpamFilename.Dir.to_string repo_root, Some Git.test_tag
-    | Some `http  -> "http://127.0.0.1:1234", None
-    | Some `local
-    | None        -> OpamFilename.Dir.to_string repo_root, None
+  let repo_url = match kind with
+    | Some `git   ->
+      { OpamUrl.backend = `git;
+        transport = "file";  path = OpamFilename.Dir.to_string repo_root;
+        hash = Some Git.test_tag }
+    | Some `http  ->
+      { OpamUrl.backend = `http;
+        transport = "http";  path = "127.0.0.1:1234";
+        hash = None }
+    | Some `rsync
+    | None        ->
+      { OpamUrl.backend = `rsync;
+        transport = "file";  path = OpamFilename.Dir.to_string repo_root;
+        hash = None }
     | _           -> raise Not_available in
-  let repo_kind = OpamStd.Option.default `local kind in
   let repo = {
     repo_name;
     repo_root;
     repo_priority = 0;
-    repo_address;
-    repo_kind;
+    repo_url;
   } in
   { repo; opam_root; contents_root }
 
@@ -132,13 +139,13 @@ let check_installed path  ?(roots = []) wished_list =
      failwith "Installed packages don't match expectations")
 
 let update_server_index repo =
-  match repo.repo_kind with
+  match repo.repo_url.OpamUrl.backend with
   | `http ->
       OpamFilename.exec repo.repo_root [["opam-admin"; "make"; "--index"]]
   | _ -> ()
 
 let start_file_server repo =
-  match repo.repo_kind with
+  match repo.repo_url.OpamUrl.backend with
   | `http ->
       let cmd = Filename.concat (Sys.getcwd ()) "file-server" in
       OpamFilename.mkdir repo.repo_root;
@@ -161,8 +168,8 @@ let start_file_server repo =
 
 module type TEST = sig
   val name: string
-  val init: OpamTypes.repository_kind option -> OpamFilename.Dir.t -> unit
-  val run: OpamTypes.repository_kind option -> OpamFilename.Dir.t -> unit
+  val init: OpamUrl.backend option -> OpamFilename.Dir.t -> unit
+  val run: OpamUrl.backend option -> OpamFilename.Dir.t -> unit
 end
 
 (* INIT *)
@@ -187,7 +194,7 @@ let init_repo_update_u kind path =
 
 let init_dev_update_u contents_kind path =
   log "init-dev-update %s" (OpamFilename.Dir.to_string path);
-  let { repo; opam_root; contents_root } = create_config (Some `local)  path in
+  let { repo; opam_root; contents_root } = create_config (Some `rsync)  path in
   OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
@@ -207,16 +214,16 @@ let init_pin_update_u contents_kind path =
 
 let init_pin_install_u contents_kind path =
   log "init-pin-install";
-  let { repo; opam_root; contents_root } = create_config (Some `local)  path in
+  let { repo; opam_root; contents_root } = create_config (Some `rsync)  path in
   OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
   let packages =
-    let a1 = OpamRTinit.package "a" 1 (Some `local) contents_root 442 in
-    let a2 = OpamRTinit.package "a" 2 (Some `local) contents_root 443 in
-    let b1 = OpamRTinit.package "b" 1 (Some `local) contents_root 444 in
-    let b2 = OpamRTinit.package "b" 2 (Some `local) contents_root 445 in
+    let a1 = OpamRTinit.package "a" 1 (Some `rsync) contents_root 442 in
+    let a2 = OpamRTinit.package "a" 2 (Some `rsync) contents_root 443 in
+    let b1 = OpamRTinit.package "b" 1 (Some `rsync) contents_root 444 in
+    let b2 = OpamRTinit.package "b" 2 (Some `rsync) contents_root 445 in
     let b1 = Packages.add_depend b1 "a" ~formula:(Atom (`Eq, OpamPackage.Version.of_string "1")) in
     let b2 = Packages.add_depend b2 "a" ~formula:(Atom (`Eq, OpamPackage.Version.of_string "2")) in
     [ a1; a2; b1; b2 ]
@@ -233,21 +240,21 @@ let init_pin_install_u contents_kind path =
 
 let init_reinstall_u contents_kind path =
   log "init-pin-install";
-  let { repo; opam_root; contents_root } = create_config (Some `local)  path in
+  let { repo; opam_root; contents_root } = create_config (Some `rsync)  path in
   OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
   let packages =
-    let a = OpamRTinit.package "a" 1 (Some `local) contents_root 450 in
+    let a = OpamRTinit.package "a" 1 (Some `rsync) contents_root 450 in
     let b = Packages.add_depend_with_runtime_checks opam_root
-        (OpamRTinit.package "b" 1 (Some `local) contents_root 451)
+        (OpamRTinit.package "b" 1 (Some `rsync) contents_root 451)
         "a" in
     let c = Packages.add_depend_with_runtime_checks opam_root
-        (OpamRTinit.package "c" 1 (Some `local) contents_root 452)
+        (OpamRTinit.package "c" 1 (Some `rsync) contents_root 452)
         "b" in
     let d = Packages.add_depend_with_runtime_checks opam_root
-        (OpamRTinit.package "d" 1 (Some `local) contents_root 453)
+        (OpamRTinit.package "d" 1 (Some `rsync) contents_root 453)
         "c" in
     [ a; b; c; d ]
   in
@@ -290,11 +297,12 @@ let test_dev_update_u path =
       match url with
       | None   -> acc
       | Some u ->
-        let dir = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
-        if not (OpamFilename.exists_dir dir) then
+        match OpamUrl.local_dir (OpamFile.URL.url u) with
+        | Some dir ->
+          (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
+        | None ->
           OpamConsole.error_and_exit "Missing contents folder: %s"
-            (OpamFilename.Dir.to_string dir);
-        (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
+            (OpamUrl.base_url (OpamFile.URL.url u))
     ) packages [] in
 
   (* install the packages *)
@@ -363,7 +371,7 @@ let test_pin_install_u path =
   step "Remove all, unpin a, add a new version of a and update";
   OPAM.remove opam_root a;
   OPAM.unpin opam_root a;
-  let a3 = OpamRTinit.package "a" 3 (Some `local) contents_root 452 in
+  let a3 = OpamRTinit.package "a" 3 (Some `rsync) contents_root 452 in
   Packages.add repo contents_root a3;
   OPAM.update opam_root;
   check_installed path [];
@@ -418,7 +426,7 @@ let test_reinstall_u path =
    with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
   step "Revert to the state with all packages installed and b removed upstream";
   let b1 = Packages.add_depend_with_runtime_checks opam_root
-      (OpamRTinit.package "b" 1 (Some `local) contents_root 451)
+      (OpamRTinit.package "b" 1 (Some `rsync) contents_root 451)
       "a" in
   Packages.add repo contents_root b1;
   OPAM.update opam_root;
@@ -431,7 +439,7 @@ let test_reinstall_u path =
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Add a new version of c, then upgrade";
   let c2 = Packages.add_depend_with_runtime_checks opam_root
-      (OpamRTinit.package "c" 2 (Some `local) contents_root 552)
+      (OpamRTinit.package "c" 2 (Some `rsync) contents_root 552)
       "b" in
   Packages.add repo contents_root c2;
   OPAM.update opam_root;
@@ -444,7 +452,7 @@ let test_reinstall_u path =
   OPAM.reinstall opam_root a;
   check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
   step "Add a new version of a and upgrade";
-  let a2 = OpamRTinit.package "a" 2 (Some `local) contents_root 452 in
+  let a2 = OpamRTinit.package "a" 2 (Some `rsync) contents_root 452 in
   Packages.add repo contents_root a2;
   OPAM.update opam_root;
   OPAM.upgrade opam_root [];
@@ -504,16 +512,16 @@ module Dep_cycle : TEST = struct
   let init_u kind path =
     log "init-dep-cycle";
     let { repo; opam_root; contents_root } =
-      create_config (Some `local)  path in
+      create_config (Some `rsync)  path in
     OpamConsole.msg
       "Creating a new repository in %s/ ...\n"
       (OpamFilename.Dir.to_string repo.repo_root);
     OpamRTinit.create_simple_repo repo contents_root kind;
     let packages =
-      let a1 = OpamRTinit.package "a" 1 (Some `local) contents_root 450 in
-      let a2 = OpamRTinit.package "a" 2 (Some `local) contents_root 451 in
-      let b1 = OpamRTinit.package "b" 1 (Some `local) contents_root 452 in
-      let b2 = OpamRTinit.package "b" 2 (Some `local) contents_root 453 in
+      let a1 = OpamRTinit.package "a" 1 (Some `rsync) contents_root 450 in
+      let a2 = OpamRTinit.package "a" 2 (Some `rsync) contents_root 451 in
+      let b1 = OpamRTinit.package "b" 1 (Some `rsync) contents_root 452 in
+      let b2 = OpamRTinit.package "b" 2 (Some `rsync) contents_root 453 in
       let a1 = Packages.add_depend_with_runtime_checks opam_root a1
           ~formula:(Atom (`Eq, OpamPackage.Version.of_string "1"))
           "b" in

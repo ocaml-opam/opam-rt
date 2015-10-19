@@ -255,14 +255,17 @@ module Packages = struct
   let url kind path = function
     | 0 -> None
     | i ->
-      let kind, path = match kind with
-        | Some `git   -> `git, (OpamFilename.Dir.to_string path, Some Git.test_tag)
+      let url = match kind with
+        | Some `git   ->
+          let u = OpamUrl.parse ~backend:`git (OpamFilename.Dir.to_string path) in
+          { u with OpamUrl.hash = Some Git.test_tag }
         | None
-        | Some `local -> `local, (OpamFilename.Dir.to_string path, None)
+        | Some `rsync ->
+          OpamUrl.parse ~backend:`rsync (OpamFilename.Dir.to_string path)
         | _           -> failwith "TODO" in
-      let url = URL.create kind path in
+      let url_file = URL.create url in
       let checksum = Printf.sprintf "%032d" i in
-      Some (URL.with_checksum url checksum)
+      Some (URL.with_checksum url_file checksum)
 
   let descr = function
     | 0 -> None
@@ -422,12 +425,11 @@ module OPAM = struct
           :: [var]))
 
   let init opam_root repo =
-    let kind = string_of_repository_kind repo.repo_kind in
     OpamClientConfig.update ~sync_archives:true ();
     opam opam_root "init" [
       OpamRepositoryName.to_string repo.repo_name;
-      string_of_address repo.repo_address;
-      "--no-setup"; "--kind"; kind
+      OpamUrl.to_string repo.repo_url;
+      "--no-setup"
     ]
 
   let install opam_root ?version name =
@@ -649,12 +651,15 @@ module Check = struct
       | None   -> A.Map.empty
       | Some u ->
         let base =
-          let package_root = OpamFilename.Dir.of_string (fst (OpamFile.URL.url u)) in
-          let filter file =
-            if OpamFilename.starts_with (package_root / ".git") file then None
-            else if OpamFilename.ends_with ".install" file then None
-            else Some (OpamFilename.dirname file) in
-          attributes ~filter package_root in
+          match OpamUrl.local_dir (OpamFile.URL.url u) with
+          | Some package_root ->
+            let filter file =
+              if OpamFilename.starts_with (package_root / ".git") file then None
+              else if OpamFilename.ends_with ".install" file then None
+              else Some (OpamFilename.dirname file) in
+            attributes ~filter package_root
+          | None -> A.Map.empty
+        in
         let files = match files_dir opam_root nv with
           | None   -> A.Map.empty
           | Some d -> attributes d in

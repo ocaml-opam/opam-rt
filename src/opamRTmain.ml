@@ -93,7 +93,7 @@ let mk_opt ?section ?vopt flags value doc conv default =
 
 let repo_kinds = [
   "http" , `http;
-  "local", `local;
+  "local", `rsync;
   "git"  , `git;
   "darcs", `darcs;
   "hg"   , `hg;
@@ -106,7 +106,7 @@ let repo_kind_flag =
     (* aliases *)
     "wget" , `http;
     "curl" , `http;
-    "rsync", `local;
+    "rsync", `rsync;
   ] in
   mk_opt ["k";"kind"]
     "KIND" "Specify the kind of the repository to be set (the main ones \
