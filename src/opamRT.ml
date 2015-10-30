@@ -108,12 +108,11 @@ let read_config path =
 type installed = { installed: package_set; installed_roots: package_set }
 let read_installed path =
   let opam_root = path / "opam" in
-  {
-    installed = OpamFile.Installed.read
-        (OpamPath.Switch.installed opam_root OpamSwitch.system);
-    installed_roots = OpamFile.Installed_roots.read
-        (OpamPath.Switch.installed_roots opam_root OpamSwitch.system);
-  }
+  let st =
+    OpamFile.State.read (OpamPath.Switch.state opam_root OpamSwitch.system)
+  in
+  { installed = st.OpamFile.State.installed;
+    installed_roots = st.OpamFile.State.installed_roots; }
 
 let check_installed path  ?(roots = []) wished_list =
   let wished_installed = OpamPackage.Set.of_list wished_list in

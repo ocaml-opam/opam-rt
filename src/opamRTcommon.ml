@@ -565,8 +565,10 @@ module Check = struct
     check_attributes (n1, a1) (n2, a2)
 
   let installed root =
-    let file = OpamPath.Switch.installed root OpamSwitch.system in
-    OpamFile.Installed.safe_read file
+    let st =
+      OpamFile.State.read (OpamPath.Switch.state root OpamSwitch.system)
+    in
+    st.OpamFile.State.installed
 
   let package_of_filename file =
     let rec aux dirname basename =
