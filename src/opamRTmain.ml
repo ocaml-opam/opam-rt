@@ -1,5 +1,7 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2015 OCamlPro
+ * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
+ *         Louis Gesbert <louis.gesbert@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
