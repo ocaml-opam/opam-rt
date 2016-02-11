@@ -152,10 +152,10 @@ module Git = struct
 end
 
 let random_string n =
-  let s = String.create n in
-  String.iteri (fun i _ ->
+  let s = Bytes.create n in
+  Bytes.iteri (fun i _ ->
       let c = int_of_char 'A' + Random.int 58 in
-      s.[i] <- char_of_int c
+      Bytes.set s i (char_of_int c)
     ) s;
   s
 
