@@ -407,7 +407,6 @@ let read_url opam_root nv =
 module OPAM = struct
 
   let opam ?(fake=false) ?(env=[]) opam_root command args =
-    let env = "OPAMNOBASEPACKAGES=1" :: env in
     OpamConsole.msg "%s\n"
       (Color.blue ">> %s opam %s %s "
          (String.concat ";" env)
@@ -436,7 +435,8 @@ module OPAM = struct
       OpamRepositoryName.to_string repo.repo_name;
       OpamUrl.to_string repo.repo_url;
       "--no-setup"
-    ]
+    ];
+    opam opam_root "switch" ["system";"--empty"]
 
   let install opam_root ?version name =
     opam opam_root "install" [
