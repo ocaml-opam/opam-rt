@@ -387,11 +387,15 @@ module Packages = struct
 
 end
 
+let system_switch = OpamSwitch.of_string "system"
+
 let read_url opam_root nv =
   let read file =
     if OpamFilename.exists file then Some (OpamFile.URL.read file) else None in
   let name = OpamPackage.name nv in
-  let overlay_url = OpamPath.Switch.Overlay.url opam_root OpamSwitch.system name in
+  let overlay_url =
+    OpamPath.Switch.Overlay.url opam_root system_switch name
+  in
   let url = OpamPath.url opam_root nv in
   match read overlay_url with
   | Some u -> Some u
@@ -566,9 +570,10 @@ module Check = struct
 
   let installed root =
     let st =
-      OpamFile.State.read (OpamPath.Switch.state root OpamSwitch.system)
+      OpamFile.SwitchSelections.read
+        (OpamPath.Switch.selections root system_switch)
     in
-    st.OpamFile.State.installed
+    st.sel_installed
 
   let package_of_filename file =
     let rec aux dirname basename =
@@ -626,7 +631,7 @@ module Check = struct
 
   let files_dir opam_root nv =
     let d2 =
-      OpamPath.Switch.Overlay.files opam_root OpamSwitch.system (OpamPackage.name nv) in
+      OpamPath.Switch.Overlay.files opam_root system_switch (OpamPackage.name nv) in
     let d3 = OpamPath.files opam_root nv in
     if OpamFilename.exists_dir d2 then Some d2
     else if OpamFilename.exists_dir d3 then Some d3
@@ -637,15 +642,15 @@ module Check = struct
     let opam =
       let name = OpamPackage.name nv in
       let libs =
-        OpamPath.Switch.Default.lib opam_root OpamSwitch.system name in
+        OpamPath.Switch.Default.lib opam_root system_switch name in
       let bins =
-        OpamPath.Switch.Default.bin opam_root OpamSwitch.system in
+        OpamPath.Switch.Default.bin opam_root system_switch in
       A.Map.union
         (fun x y -> failwith "union")
         (attributes
            ~filter:(fun f ->
-               if f <> OpamPath.Switch.Default.config
-                    opam_root OpamSwitch.system name
+               if f <> OpamPath.Switch.config
+                    opam_root system_switch name
                then Some libs else None)
            libs)
         (attributes bins) in

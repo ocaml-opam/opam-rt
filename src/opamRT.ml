@@ -109,10 +109,11 @@ type installed = { installed: package_set; installed_roots: package_set }
 let read_installed path =
   let opam_root = path / "opam" in
   let st =
-    OpamFile.State.read (OpamPath.Switch.state opam_root OpamSwitch.system)
+    OpamFile.SwitchSelections.read
+      (OpamPath.Switch.selections opam_root OpamRTcommon.system_switch)
   in
-  { installed = st.OpamFile.State.installed;
-    installed_roots = st.OpamFile.State.installed_roots; }
+  { installed = st.sel_installed;
+    installed_roots = st.sel_roots; }
 
 let check_installed path  ?(roots = []) wished_list =
   let wished_installed = OpamPackage.Set.of_list wished_list in
@@ -335,7 +336,7 @@ let test_pin_install_u path =
   let v version = OpamPackage.Version.of_string (string_of_int version) in
   let (-) = OpamPackage.create in
   let overlay name =
-    OpamPath.Switch.Overlay.opam opam_root OpamSwitch.system name in
+    OpamPath.Switch.Overlay.opam opam_root OpamRTcommon.system_switch name in
   let map_overlay f pkg =
     let o = overlay pkg in
     OpamFile.OPAM.write o (f (OpamFile.OPAM.read o)) in
