@@ -279,11 +279,7 @@ let _ =
   Unix.umask 0o022
 
 let () =
-  OpamSystem.init ();
-  OpamStd.Config.init ();
-  OpamRepositoryConfig.init ();
-  OpamSolverConfig.init ();
-  OpamClientConfig.init ();
+  OpamClientConfig.opam_init ();
   try
     match Term.eval_choice ~catch:false default commands with
     | `Error _ -> exit 1

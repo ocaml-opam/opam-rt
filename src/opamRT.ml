@@ -21,6 +21,7 @@ open OpamRTcommon
 open OpamTypes
 open OpamTypesBase
 open OpamStd.Op
+open OpamStd.Option.Op
 
 exception Not_available
 exception Allowed_failure
@@ -93,7 +94,8 @@ let create_config kind path =
   { repo; opam_root; contents_root }
 
 let repo_config_file path name =
-  path / "repo" // (OpamRepositoryName.to_string name^".config")
+  OpamFile.make
+    (path / "repo" // (OpamRepositoryName.to_string name^".config"))
 
 let read_config path =
   if not (OpamFilename.exists_dir path) then
@@ -293,9 +295,16 @@ let test_repo_update_u path =
 let test_dev_update_u path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
   let { repo; opam_root; contents_root } = read_config path in
-  let packages = OpamRepository.packages repo in
-  let packages = OpamPackage.Set.fold (fun nv acc ->
-      let url = read_url opam_root nv in
+  let opams = OpamPackage.Map.fold (fun nv pfxopt acc ->
+      match
+        pfxopt >>= fun pfx ->
+        OpamFileHandling.read_opam (repo.repo_root / pfx)
+      with Some o -> OpamPackage.Map.add nv o acc
+         | None -> acc)
+      (OpamRepository.packages_with_prefixes repo)
+      OpamPackage.Map.empty in
+  let packages = OpamPackage.Map.fold (fun nv opam acc ->
+      let url = OpamFile.OPAM.url opam in
       match url with
       | None   -> acc
       | Some u ->
@@ -305,7 +314,7 @@ let test_dev_update_u path =
         | None ->
           OpamConsole.error_and_exit "Missing contents folder: %s"
             (OpamUrl.base_url (OpamFile.URL.url u))
-    ) packages [] in
+    ) opams [] in
 
   (* install the packages *)
   List.iter (fun (nv, _) ->
@@ -323,7 +332,7 @@ let test_dev_update_u path =
           Git.branch dir;
           OPAM.update opam_root;
           OPAM.upgrade opam_root [];
-          Check.contents opam_root nv;
+          Check.contents opam_root nv (OpamPackage.Map.find nv opams);
         ) commits
     ) packages
 
@@ -355,7 +364,7 @@ let test_pin_install_u path =
   OPAM.remove opam_root ~auto:true b;
   check_installed path [];
   step "Change pinned version of a to 1";
-  map_overlay (fun o -> OpamFile.OPAM.with_version o (v 1)) a;
+  map_overlay (OpamFile.OPAM.with_version (v 1)) a;
   step "Attempt to install b 2";
   (try
     OPAM.install opam_root b ~version:(v 2);
@@ -366,7 +375,7 @@ let test_pin_install_u path =
   OPAM.install opam_root b;
   check_installed path ~roots:[ b-v 1 ] [ b-v 1; a-v 1 ];
   step "Change pinned version of installed package a back to 2";
-  map_overlay (fun o -> OpamFile.OPAM.with_version o (v 2)) a;
+  map_overlay (OpamFile.OPAM.with_version (v 2)) a;
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-v 2 ];
   (* -- *)
@@ -595,18 +604,18 @@ module Pin_advanced : TEST = struct
          failwith "Bad installed files")
     in
     let write_opam nv touch_files file =
-      let opam = OpamFile.OPAM.create nv in
       let this = OpamPackage.Name.to_string (OpamPackage.name nv) in
-      let opam = OpamFile.OPAM.with_build opam
-          (([CString "mkdir",None; CString "-p", None; CIdent (this^":share"), None],None)::
-           List.map (fun f -> [CString "touch",None; CString ("%{"^this^":share}%/"^f), None],None)
-             touch_files) in
+      OpamFile.OPAM.create nv |>
+      OpamFile.OPAM.with_build
+        (([CString "mkdir",None; CString "-p", None; CIdent (this^":share"), None],None)::
+         List.map (fun f -> [CString "touch",None; CString ("%{"^this^":share}%/"^f), None],None)
+           touch_files) |>
       (* OPAM is not expected to keep track of what to remove after "pin --edit",
          so remove the whole directory. *)
-      let opam = OpamFile.OPAM.with_remove opam
-          [[CString "rm",None; CString "-rf",None;
-            CString ("%{"^this^":share}%"), None],None] in
-      OpamFile.OPAM.write file opam
+      OpamFile.OPAM.with_remove
+        [[CString "rm",None; CString "-rf",None;
+          CString ("%{"^this^":share}%"), None],None] |>
+      OpamFile.OPAM.write (OpamFile.make file)
     in
     let tests pin_update pin_target pin_kind pin_version =
       step "Pin (uninstalled) package a";
