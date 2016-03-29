@@ -270,8 +270,8 @@ module Packages = struct
           OpamUrl.parse ~backend:`rsync (OpamFilename.Dir.to_string path)
         | _           -> failwith "TODO" in
       let url_file = URL.create url in
-      let checksum = Printf.sprintf "%032d" i in
-      Some (URL.with_checksum checksum url_file)
+      (* let checksum = Printf.sprintf "%032d" i in *)
+      Some ((* URL.with_checksum checksum *) url_file)
 
   let descr = function
     | 0 -> None
