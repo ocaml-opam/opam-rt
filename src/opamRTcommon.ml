@@ -497,6 +497,13 @@ module OPAM = struct
     opam opam_root "switch" ["export"; OpamFilename.to_string file]
 end
 
+let repo_opams repo =
+  OpamPackage.Map.mapi (fun nv pfx ->
+      OpamRepositoryPath.packages repo pfx nv |>
+      OpamFileHandling.read_opam |>
+      function Some x -> x | None -> assert false)
+    (OpamRepository.packages_with_prefixes repo)
+
 module Check = struct
 
   module A = OpamFilename.Attribute
@@ -602,17 +609,36 @@ module Check = struct
     (* invariants *)
     check_invariants root;
     (* metadata *)
-    let r = OpamRepositoryPath.packages_dir repo in
-    let o = OpamPath.Switch.installed_opams root system_switch in
     let installed = installed root in
     if OpamPackage.Set.is_empty installed then
       OpamConsole.error_and_exit
         "No package are installed. Tests are meaningless, stopping.";
-    let filter file =
-      let dirname, nv = package_of_filename file in
-      if OpamPackage.Set.mem nv installed then Some dirname
-      else None in
-    check_dirs ~filter ("repo", r) ("opam", o);
+    let installed_opams =
+      OpamPackage.Set.fold (fun nv acc ->
+          OpamPackage.Map.add nv
+            (OpamFile.OPAM.read
+               (OpamPath.Switch.installed_opam root system_switch nv))
+            acc)
+        installed OpamPackage.Map.empty in
+    let repo_opams =
+      OpamPackage.Map.filter (fun nv _ -> OpamPackage.Set.mem nv installed)
+        (repo_opams repo) in
+    let diff = OpamPackage.Map.merge (fun nv a b -> match a,b with
+        | Some o1, Some o2 when OpamFile.OPAM.effectively_equal o1 o2 -> None
+        | x -> Some x)
+        installed_opams repo_opams
+    in
+    if not (OpamPackage.Map.is_empty diff) then (
+      OpamConsole.error "Opam files from repo and installed differ for %s"
+        (OpamPackage.Set.to_string (OpamPackage.keys diff));
+      OpamPackage.Map.iter (fun nv (installed,repo) ->
+          OpamConsole.errmsg "DIFF on %s:\n=== REPO ===\n%s\n=== OPAM ===\n%s\n"
+            (OpamPackage.to_string nv)
+            (OpamStd.Option.to_string (OpamFile.OPAM.write_to_string ?filename:None) repo)
+            (OpamStd.Option.to_string (OpamFile.OPAM.write_to_string ?filename:None) installed))
+        diff;
+      failwith "Sync error"
+    );
     (* archives *)
     let r = OpamRepositoryPath.archives_dir repo in
     let o = OpamPath.archives_dir root in

@@ -269,7 +269,7 @@ let init_reinstall_u contents_kind path =
 
 (* TEST RUNS *)
 
-(* Basic reposiotry update test: we verify that the global contents is
+(* Basic repository update test: we verify that the global contents is
    the same as the repository contents after each new commit in the
    repository + upgrade. *)
 let test_repo_update_u path =
@@ -285,6 +285,7 @@ let test_repo_update_u path =
       Git.branch repo.repo_root;
       update_server_index repo;
       OPAM.update opam_root;
+      OPAM.upgrade opam_root [];
       Check.packages repo opam_root;
     ) (OpamRTinit.shuffle commits);
 
@@ -295,14 +296,7 @@ let test_repo_update_u path =
 let test_dev_update_u path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
   let { repo; opam_root; contents_root } = read_config path in
-  let opams = OpamPackage.Map.fold (fun nv pfxopt acc ->
-      match
-        pfxopt >>= fun pfx ->
-        OpamFileHandling.read_opam (repo.repo_root / pfx)
-      with Some o -> OpamPackage.Map.add nv o acc
-         | None -> acc)
-      (OpamRepository.packages_with_prefixes repo)
-      OpamPackage.Map.empty in
+  let opams = repo_opams repo in
   let packages = OpamPackage.Map.fold (fun nv opam acc ->
       let url = OpamFile.OPAM.url opam in
       match url with
