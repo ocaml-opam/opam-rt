@@ -264,7 +264,7 @@ module Packages = struct
       let url = match kind with
         | Some `git   ->
           let u = OpamUrl.parse ~backend:`git (OpamFilename.Dir.to_string path) in
-          { u with OpamUrl.hash = Some Git.test_tag }
+          (* { u with OpamUrl.hash = Some Git.test_tag } *) u
         | None
         | Some `rsync ->
           OpamUrl.parse ~backend:`rsync (OpamFilename.Dir.to_string path)
