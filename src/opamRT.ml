@@ -187,14 +187,16 @@ let init_repo_update_u kind path =
   OpamRTinit.create_repo_with_history repo contents_root;
   OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
   let stop_server = start_file_server repo in
-  OpamConsole.msg
-    "Initializing an OPAM instance in %s/ ...\n"
-    (OpamFilename.Dir.to_string opam_root);
-  OPAM.init opam_root repo;
-  OPAM.install opam_root
-    ~version:(OpamPackage.Version.of_string "1")
-    (OpamPackage.Name.of_string "a");
-  stop_server ()
+  try
+    OpamConsole.msg
+      "Initializing an OPAM instance in %s/ ...\n"
+      (OpamFilename.Dir.to_string opam_root);
+    OPAM.init opam_root repo;
+    OPAM.install opam_root
+      ~version:(OpamPackage.Version.of_string "1")
+      (OpamPackage.Name.of_string "a");
+    stop_server ()
+  with e -> stop_server (); raise e
 
 let init_dev_update_u contents_kind path =
   log "init-dev-update %s" (OpamFilename.Dir.to_string path);

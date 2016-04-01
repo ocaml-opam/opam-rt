@@ -82,7 +82,7 @@ let create_repo_with_history repo contents_root =
     a2 contents_root 2;
     a2 contents_root 1;
     a2 contents_root 0;
-  ] @ random_list 5 (ar repo.repo_root) in
+  ] @ random_list 5 (ar contents_root) in
   List.iter (Packages.add repo contents_root) all;
   Git.branch repo.repo_root
 
