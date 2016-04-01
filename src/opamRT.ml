@@ -299,6 +299,11 @@ let test_dev_update_u path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
   let { repo; opam_root; contents_root } = read_config path in
   let opams = repo_opams repo in
+  let opams = OpamPackage.Map.union (fun _ x -> x) opams @@
+    repo_opams
+      { repo with repo_root =
+                    OpamPath.Switch.Overlay.dir opam_root system_switch }
+  in
   let packages = OpamPackage.Map.fold (fun nv opam acc ->
       let url = OpamFile.OPAM.url opam in
       match url with
@@ -309,7 +314,7 @@ let test_dev_update_u path =
           (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
         | None ->
           OpamConsole.error_and_exit "Missing contents folder: %s"
-            (OpamUrl.base_url (OpamFile.URL.url u))
+            (OpamUrl.to_string (OpamFile.URL.url u))
     ) opams [] in
 
   (* install the packages *)
