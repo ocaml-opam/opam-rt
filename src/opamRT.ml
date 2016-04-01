@@ -597,7 +597,7 @@ module Pin_advanced : TEST = struct
            (String.concat " " found_files) (String.concat ", " files);
          failwith "Bad installed files")
     in
-    let write_opam nv touch_files file =
+    let write_opam nv ?url touch_files file =
       let this = OpamPackage.Name.to_string (OpamPackage.name nv) in
       OpamFile.OPAM.create nv |>
       OpamFile.OPAM.with_build
@@ -609,6 +609,7 @@ module Pin_advanced : TEST = struct
       OpamFile.OPAM.with_remove
         [[CString "rm",None; CString "-rf",None;
           CString ("%{"^this^":share}%"), None],None] |>
+      OpamFile.OPAM.with_url_opt url |>
       OpamFile.OPAM.write (OpamFile.make file)
     in
     let tests pin_update pin_target pin_kind pin_version =
@@ -621,11 +622,8 @@ module Pin_advanced : TEST = struct
       step "Unpin a";
       OPAM.unpin opam_root ~action:false a;
       check_installed path [a-pin_version];
-      step "Reinstall a (should fail nicely, same version not available)";
-      (try
-         OPAM.reinstall opam_root a;
-         failwith "should fail"
-       with OpamSystem.Process_error {OpamProcess.r_code = 66} -> ());
+      step "Reinstall a (should succeed using the cache)";
+      OPAM.reinstall opam_root a;
       check_installed path [a-pin_version];
       check_pkg_shares a ["pinned_5"];
       step "Upgrade a";
@@ -648,16 +646,21 @@ module Pin_advanced : TEST = struct
       step "Pin-edit";
       step "Pin-edit AND change in-source opam";
       OPAM.pin_edit opam_root ~action:false a
-        (write_opam (a-v 5) ["pin-edit_bis"]);
+        (write_opam
+          ~url:(OpamFile.URL.create (OpamUrl.of_string (pin_target a)))
+          (a-v 5) ["pin-edit_bis"]);
       pin_update a (fun () ->
-          write_opam (a-v 5) ["repin_5bis"] (OpamFilename.Dir.of_string "opam" // "opam"));
+          write_opam (a-v 5) ["repin_5bis"]
+            (OpamFilename.Dir.of_string "opam" // "opam"));
       (* We are on --yes so the source version should win *)
       OPAM.upgrade opam_root [a];
       check_installed path [a-pin_version];
       check_pkg_shares a ["repin_5bis"];
       step "Pin-edit with version change";
       OPAM.pin_edit opam_root ~action:true a
-        (write_opam (a-v 100) ["pin-edit-v100"]);
+        (write_opam
+           ~url:(OpamFile.URL.create (OpamUrl.of_string (pin_target a)))
+           (a-v 100) ["pin-edit-v100"]);
       check_installed path [a-v 100];
       check_pkg_shares a ["pin-edit-v100"];
       step "Create new package z by pinning";
