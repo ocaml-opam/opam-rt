@@ -665,10 +665,10 @@ module Check = struct
         (attributes bins) in
 
     let contents =
-      match OpamFile.OPAM.url opam_file with
-      | None   -> A.Map.empty
-      | Some u ->
-        let base =
+      let base =
+        match OpamFile.OPAM.url opam_file with
+        | None   -> A.Map.empty
+        | Some u ->
           match OpamUrl.local_dir (OpamFile.URL.url u) with
           | Some package_root ->
             let filter file =
@@ -677,12 +677,12 @@ module Check = struct
               else Some (OpamFilename.dirname file) in
             attributes ~filter package_root
           | None -> A.Map.empty
-        in
-        let files = match OpamFile.OPAM.metadata_dir opam_file with
-          | None   -> A.Map.empty
-          | Some d -> attributes d in
+      in
+      let files = match OpamFile.OPAM.metadata_dir opam_file with
+        | None   -> A.Map.empty
+        | Some d -> attributes (d  / "files") in
 
-        A.Map.union (fun x y -> x) files base in
+      A.Map.union (fun x y -> x) files base in
 
     check_attributes ("opam", opam) ("contents", contents)
 

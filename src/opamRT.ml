@@ -313,8 +313,7 @@ let test_dev_update_u path =
         | Some dir ->
           (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
         | None ->
-          OpamConsole.error_and_exit "Missing contents folder: %s"
-            (OpamUrl.to_string (OpamFile.URL.url u))
+          acc
     ) opams [] in
 
   (* install the packages *)
