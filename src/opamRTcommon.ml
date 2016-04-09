@@ -238,10 +238,11 @@ module Packages = struct
     OPAM.with_maintainer [maintainer] opam
 
   let add_depend t ?(formula=OpamFormula.Empty) name =
+    let frm = OpamFormula.map (fun a -> Atom (Constraint a)) formula in
     let depends =
       OpamFormula.And
         (OPAM.depends t.opam,
-         Atom (OpamPackage.Name.of_string name, ([], formula))) in
+         Atom (OpamPackage.Name.of_string name, frm)) in
     { t with opam = OPAM.with_depends depends t.opam }
 
   let add_depend_with_runtime_checks opam_root t ?formula name =
@@ -413,6 +414,7 @@ module OPAM = struct
     OpamSystem.command
       ~env:(Array.concat [Unix.environment(); Array.of_list env])
       ~verbose:true
+      ~allow_stdin:false
       ("opam" :: command ::
          "--yes" ::
          ["--root"; (OpamFilename.Dir.to_string opam_root)]
@@ -501,7 +503,7 @@ end
 let repo_opams repo =
   OpamPackage.Map.mapi (fun nv pfx ->
       OpamRepositoryPath.packages repo pfx nv |>
-      OpamFileHandling.read_opam |>
+      OpamFileTools.read_opam |>
       function Some x -> x | None -> assert false)
     (OpamRepository.packages_with_prefixes repo)
 
