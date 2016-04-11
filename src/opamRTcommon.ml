@@ -434,7 +434,7 @@ module OPAM = struct
     opam opam_root "init" [
       OpamRepositoryName.to_string repo.repo_name;
       OpamUrl.to_string repo.repo_url;
-      "--no-setup"
+      "--no-setup"; "--bare"
     ];
     opam opam_root "switch" ["system";"--empty"];
     opam opam_root "config" ["set";"ocaml-version";"4.02.1"]
