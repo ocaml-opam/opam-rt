@@ -62,11 +62,12 @@ type config = {
   contents_root: dirname;
 }
 
+let base_repo_name = OpamRepositoryName.of_string "base"
+
 let create_config kind path =
   if OpamFilename.exists_dir path then
     OpamConsole.error_and_exit "%s already exists." (OpamFilename.Dir.to_string path);
   OpamFilename.mkdir path;
-  let repo_name = OpamRepositoryName.of_string "base" in
   let repo_root = path / "repo" in
   let opam_root = path / "opam" in
   let contents_root = path / "contents" in
@@ -86,26 +87,34 @@ let create_config kind path =
         hash = None }
     | _           -> raise Not_available in
   let repo = {
-    repo_name;
+    repo_name = base_repo_name;
     repo_root;
     repo_priority = 0;
     repo_url;
   } in
   { repo; opam_root; contents_root }
 
-let repo_config_file path name =
-  OpamFile.make
-    (path / "repo" // (OpamRepositoryName.to_string name^".config"))
+let repos_config_file path =
+  OpamFile.make (path // "repo-config")
 
 let read_config path =
   if not (OpamFilename.exists_dir path) then
     OpamConsole.error_and_exit "opam-rt has not been initialized properly";
-  let repo =
-    OpamFile.Repo_config.read
-      (repo_config_file path (OpamRepositoryName.of_string "base")) in
+  let repos = OpamFile.Repos_config.read (repos_config_file path) in
   let opam_root = path / "opam" in
+  let repo = {
+    repo_name = base_repo_name;
+    repo_url = OpamStd.Option.default OpamUrl.empty @@
+      OpamRepositoryName.Map.find base_repo_name repos;
+    repo_root = path / "repo";
+    repo_priority = 0;
+  } in
   let contents_root = path / "contents" in
   { repo; opam_root; contents_root }
+
+let write_repo_config path r =
+  OpamFile.Repos_config.write (repos_config_file path)
+    (OpamRepositoryName.Map.singleton r.repo_name (Some r.repo_url))
 
 type installed = { installed: package_set; installed_roots: package_set }
 let read_installed path =
@@ -185,7 +194,7 @@ let init_repo_update_u kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_repo_with_history repo contents_root;
-  OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
+  write_repo_config path repo;
   let stop_server = start_file_server repo in
   try
     OpamConsole.msg
@@ -205,7 +214,7 @@ let init_dev_update_u contents_kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo.repo_root);
   OpamRTinit.create_simple_repo repo contents_root contents_kind;
-  OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
+  write_repo_config path repo;
   OPAM.init opam_root repo;
   OPAM.update opam_root
 
@@ -235,7 +244,7 @@ let init_pin_install_u contents_kind path =
     [ a1; a2; b1; b2 ]
   in
   List.iter (Packages.add repo contents_root) packages;
-  OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
+  write_repo_config path repo;
   OPAM.init opam_root repo;
   OPAM.update opam_root;
   let config = read_config path in
@@ -265,7 +274,7 @@ let init_reinstall_u contents_kind path =
     [ a; b; c; d ]
   in
   List.iter (Packages.add repo contents_root) packages;
-  OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
+  write_repo_config path repo;
   OPAM.init opam_root repo;
   OPAM.update opam_root
 
@@ -542,7 +551,7 @@ module Dep_cycle : TEST = struct
       [ a1; a2; b1; b2 ]
     in
     List.iter (Packages.add repo contents_root) packages;
-    OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
+    write_repo_config path repo;
     OPAM.init opam_root repo;
     OPAM.update opam_root
 
@@ -729,7 +738,7 @@ module Big_upgrade : TEST = struct
   let init kind path =
     log "init-big-upgrade %s\n" (OpamFilename.Dir.to_string path);
     let { repo; opam_root; contents_root } = create_config kind path in
-    OpamFile.Repo_config.write (repo_config_file path repo.repo_name) repo;
+    write_repo_config path repo;
     OpamConsole.msg
       "Creating a new repository in %s/ ...\n"
       (OpamFilename.Dir.to_string repo.repo_root);
