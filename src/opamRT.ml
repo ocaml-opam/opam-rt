@@ -239,8 +239,8 @@ let init_pin_install_u contents_kind path =
     let a2 = OpamRTinit.package "a" 2 (Some `rsync) contents_root 443 in
     let b1 = OpamRTinit.package "b" 1 (Some `rsync) contents_root 444 in
     let b2 = OpamRTinit.package "b" 2 (Some `rsync) contents_root 445 in
-    let b1 = Packages.add_depend b1 "a" ~formula:(Atom (`Eq, OpamPackage.Version.of_string "1")) in
-    let b2 = Packages.add_depend b2 "a" ~formula:(Atom (`Eq, OpamPackage.Version.of_string "2")) in
+    let b1 = Packages.add_depend b1 "a" ~formula:(Atom (`Eq, FString "1")) in
+    let b2 = Packages.add_depend b2 "a" ~formula:(Atom (`Eq, FString "2")) in
     [ a1; a2; b1; b2 ]
   in
   List.iter (Packages.add repo contents_root) packages;
@@ -543,10 +543,12 @@ module Dep_cycle : TEST = struct
       let b1 = OpamRTinit.package "b" 1 (Some `rsync) contents_root 452 in
       let b2 = OpamRTinit.package "b" 2 (Some `rsync) contents_root 453 in
       let a1 = Packages.add_depend_with_runtime_checks opam_root a1
-          ~formula:(Atom (`Eq, OpamPackage.Version.of_string "1"))
+          ~formula:(Atom (`Eq, FIdent (OpamFilter.ident_of_var
+                                         (OpamVariable.Full.of_string "version"))))
           "b" in
       let b2 = Packages.add_depend_with_runtime_checks opam_root b2
-          ~formula:(Atom (`Eq, OpamPackage.Version.of_string "2"))
+          ~formula:(Atom (`Eq, FIdent (OpamFilter.ident_of_var
+                                         (OpamVariable.Full.of_string "version"))))
           "a" in
       [ a1; a2; b1; b2 ]
     in
