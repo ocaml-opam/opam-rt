@@ -617,7 +617,7 @@ module Pin_advanced : TEST = struct
     let write_opam nv ?url touch_files file =
       let this = OpamPackage.Name.to_string (OpamPackage.name nv) in
       OpamFile.OPAM.create nv |>
-      OpamFile.OPAM.with_build
+      OpamFile.OPAM.with_install
         (([CString "mkdir",None; CString "-p", None; CIdent (this^":share"), None],None)::
          List.map (fun f -> [CString "touch",None; CString ("%{"^this^":share}%/"^f), None],None)
            touch_files) |>
