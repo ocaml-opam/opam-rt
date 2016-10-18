@@ -279,6 +279,7 @@ let _ =
   Unix.umask 0o022
 
 let () =
+  OpamSystem.init ();
   OpamClientConfig.opam_init ();
   try
     match Term.eval_choice ~catch:false default commands with
