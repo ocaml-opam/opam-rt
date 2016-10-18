@@ -28,7 +28,7 @@ $(KINDS):
 	$(show_results)
 	@if [ -e failed ]; then rm failed; false; fi
 
-run: opam-rt
+run:
 	@rm -f failed
 	@for kind in $(KINDS); do \
 	  for test in $(shell $(OPAMRT) list); do \
