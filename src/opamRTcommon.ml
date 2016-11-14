@@ -378,12 +378,12 @@ module Packages = struct
     let opam, descr, url, files, archive = file_list_of_t repo t in
     let commit file =
       if OpamFilename.exists file then (
-        Git.add repo.repo_root file;
-        Git.commit_file repo.repo_root file
+        Git.add repo file;
+        Git.commit_file repo file
           "Add package %s (%s)"
           (OpamPackage.to_string t.nv) (OpamFilename.to_string file);
-        let commit = Git.revision repo.repo_root in
-        Git.msg repo.repo_root commit t.nv "Add %s" (OpamFilename.to_string file);
+        let commit = Git.revision repo in
+        Git.msg repo commit t.nv "Add %s" (OpamFilename.to_string file);
       ) in
     List.iter commit [
       OpamFile.filename opam;
@@ -393,11 +393,11 @@ module Packages = struct
     ];
     if OpamFilename.exists_dir files then (
       let all = OpamFilename.rec_files files in
-      List.iter (Git.add repo.repo_root) all;
-      Git.commit_dir repo.repo_root files
+      List.iter (Git.add repo) all;
+      Git.commit_dir repo files
         "Adding files/* for package %s" (OpamPackage.to_string t.nv);
-      let commit = Git.revision repo.repo_root in
-      Git.msg repo.repo_root commit t.nv "Add %s" (OpamFilename.Dir.to_string files)
+      let commit = Git.revision repo in
+      Git.msg repo commit t.nv "Add %s" (OpamFilename.Dir.to_string files)
     )
 
 end
@@ -429,11 +429,11 @@ module OPAM = struct
           "--root" :: (OpamFilename.Dir.to_string opam_root)
           :: [var]))
 
-  let init opam_root repo =
+  let init opam_root repo_name repo_url =
     OpamClientConfig.update ();
     opam opam_root "init" [
-      OpamRepositoryName.to_string repo.repo_name;
-      OpamUrl.to_string repo.repo_url;
+      OpamRepositoryName.to_string repo_name;
+      OpamUrl.to_string repo_url;
       "--no-setup"; "--bare"
     ];
     opam opam_root "switch" ["create";"system";"--empty"];
@@ -505,7 +505,11 @@ let repo_opams repo =
       OpamRepositoryPath.packages repo pfx nv |>
       OpamFileTools.read_opam |>
       function Some x -> x | None -> assert false)
-    (OpamRepository.packages_with_prefixes repo)
+    (OpamRepository.packages_with_prefixes
+       {repo_root = repo;
+        repo_name = OpamRepositoryName.of_string "foo";
+        repo_url = OpamUrl.empty;
+        repo_priority = 0})
 
 module Check = struct
 

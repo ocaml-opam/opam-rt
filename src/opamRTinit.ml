@@ -73,8 +73,8 @@ let random_list n fn =
 
 (* Create a repository with 2 packages and a complex history *)
 let create_repo_with_history repo contents_root =
-  OpamFilename.mkdir repo.repo_root;
-  Git.init repo.repo_root;
+  OpamFilename.mkdir repo;
+  Git.init repo;
   let all = [
     a1 contents_root 0;
     a1 contents_root 1;
@@ -84,13 +84,13 @@ let create_repo_with_history repo contents_root =
     a2 contents_root 0;
   ] @ random_list 5 (ar contents_root) in
   List.iter (Packages.add repo contents_root) all;
-  Git.branch repo.repo_root
+  Git.branch repo
 
 (* Create a repository with a single package without archive file and
    no history. *)
 let create_simple_repo repo contents_root contents_kind =
-  OpamFilename.mkdir repo.repo_root;
-  Git.init repo.repo_root;
+  OpamFilename.mkdir repo;
+  Git.init repo;
   let package0 = package "a" 1 contents_kind contents_root ~gener_archive:false 10 in
   Packages.add repo contents_root package0;
   let all =
@@ -102,4 +102,4 @@ let create_simple_repo repo contents_root contents_kind =
       Packages.write repo contents_root package
     ) all;
   Git.branch (contents_root / "a.1");
-  Git.commit repo.repo_root "Add package"
+  Git.commit repo "Add package"
