@@ -101,8 +101,8 @@ let read_config path =
   let repo_name = base_repo_name in
   let opam_root = path / "opam" in
   let repo_root = path / "repo" in
-  let repo_url =
-    OpamStd.Option.default OpamUrl.empty
+  let repo_url, _repo_trust =
+    OpamStd.Option.default (OpamUrl.empty, None)
       (OpamRepositoryName.Map.find repo_name repos)
   in
   let contents_root = path / "contents" in
@@ -192,7 +192,7 @@ let init_repo_update_u kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
   OpamRTinit.create_repo_with_history repo_root contents_root;
-  write_repo_config path repo_name repo_url;
+  write_repo_config path repo_name (repo_url, None);
   let stop_server = start_file_server repo_root repo_url in
   try
     OpamConsole.msg
@@ -214,7 +214,7 @@ let init_dev_update_u contents_kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
   OpamRTinit.create_simple_repo repo_root contents_root contents_kind;
-  write_repo_config path repo_name repo_url;
+  write_repo_config path repo_name (repo_url, None);
   OPAM.init opam_root repo_name repo_url;
   OPAM.update opam_root
 
@@ -246,7 +246,7 @@ let init_pin_install_u contents_kind path =
     [ a1; a2; b1; b2 ]
   in
   List.iter (Packages.add repo_root contents_root) packages;
-  write_repo_config path repo_name repo_url;
+  write_repo_config path repo_name (repo_url, None);
   OPAM.init opam_root repo_name repo_url;
   OPAM.update opam_root;
   let config = read_config path in
@@ -278,7 +278,7 @@ let init_reinstall_u contents_kind path =
     [ a; b; c; d ]
   in
   List.iter (Packages.add repo_root contents_root) packages;
-  write_repo_config path repo_name repo_url;
+  write_repo_config path repo_name (repo_url, None);
   OPAM.init opam_root repo_name repo_url;
   OPAM.update opam_root
 
@@ -559,7 +559,7 @@ module Dep_cycle : TEST = struct
       [ a1; a2; b1; b2 ]
     in
     List.iter (Packages.add repo_root contents_root) packages;
-    write_repo_config path repo_name repo_url;
+    write_repo_config path repo_name (repo_url, None);
     OPAM.init opam_root repo_name repo_url;
     OPAM.update opam_root
 
@@ -748,7 +748,7 @@ module Big_upgrade : TEST = struct
     let { repo_name; repo_root; repo_url; opam_root; contents_root } =
       create_config kind path
     in
-    write_repo_config path repo_name repo_url;
+    write_repo_config path repo_name (repo_url, None);
     OpamConsole.msg
       "Creating a new repository in %s/ ...\n"
       (OpamFilename.Dir.to_string repo_root);

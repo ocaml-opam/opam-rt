@@ -318,7 +318,9 @@ module Packages = struct
     let descr = OpamRepositoryPath.descr repo prefix nv in
     let url = OpamRepositoryPath.url repo prefix nv in
     let files = OpamRepositoryPath.files repo prefix nv in
-    let archive = OpamRepositoryPath.archive repo nv in
+    let archive =
+      repo / ".." / "repo_archives" // (OpamPackage.to_string nv ^ ".tar.gz")
+    in
     opam, descr, url, files, archive
 
   let file_list_of_t repo t =
@@ -389,7 +391,6 @@ module Packages = struct
       OpamFile.filename opam;
       OpamFile.filename descr;
       OpamFile.filename url;
-      archive;
     ];
     if OpamFilename.exists_dir files then (
       let all = OpamFilename.rec_files files in
@@ -509,7 +510,7 @@ let repo_opams repo =
        {repo_root = repo;
         repo_name = OpamRepositoryName.of_string "foo";
         repo_url = OpamUrl.empty;
-        repo_priority = 0})
+        repo_trust = None})
 
 module Check = struct
 
@@ -597,12 +598,6 @@ module Check = struct
       | Some nv -> dirname, nv in
     aux (OpamFilename.dirname file) (OpamFilename.basename file)
 
-  let package_of_archivename file =
-    let base = OpamFilename.Base.to_string (OpamFilename.basename file) in
-    match OpamStd.String.cut_at base '+' with
-    | None        -> assert false
-    | Some (nv,_) -> OpamPackage.of_string nv
-
   let check_invariants root =
     let installed = installed root in
     OpamPackage.Set.iter (fun nv ->
@@ -645,17 +640,7 @@ module Check = struct
             (OpamStd.Option.to_string (OpamFile.OPAM.write_to_string ?filename:None) installed))
         diff;
       failwith "Sync error"
-    );
-    (* archives *)
-    let r = OpamRepositoryPath.archives_dir repo in
-    let o = OpamPath.archives_dir root in
-    let filter file =
-      let nv = package_of_archivename file in
-      if OpamPackage.Set.mem nv installed
-      && OpamFilename.exists (OpamPath.archive root nv) then
-        Some (OpamFilename.dirname file)
-      else None in
-    check_dirs ~filter ("repo", r) ("opam", o)
+    )
 
   let contents opam_root nv opam_file =
 
