@@ -21,19 +21,10 @@ open OpamTypes
 open OpamFilename.Op
 
 let shuffle l =
-  let a = Array.init (List.length l) (fun _ -> None) in
-  let rec aux n = function
-    | []   -> ()
-    | h::t ->
-      let i = ref (Random.int n) in
-      while a.(!i mod Array.length a) <> None do incr i done;
-      a.(!i) <- Some h;
-      aux (n-1) t in
-  aux (List.length l) l;
-  Array.fold_left (fun acc -> function
-      | None   -> assert false
-      | Some i -> i :: acc
-    )  [] a
+  let a = Array.of_list l in
+  let permute i j = let x = a.(i) in a.(i) <- a.(j); a.(j) <- x in
+  for i = Array.length a - 1 downto 1 do permute i (Random.int (i+1)) done;
+  Array.to_list a
 
 let package name version contents_kind contents_root ?(gener_archive=true) seed =
   let pkg = Printf.sprintf "%s.%d" name version in
