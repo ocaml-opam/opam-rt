@@ -140,6 +140,7 @@ module Git = struct
 
   let checkout repo hash =
     exec repo ["git"; "checkout"; hash];
+    exec repo ["git"; "reset"; "--hard"];
     exec repo ["git"; "clean"; "-fdx"]
 
   let msg repo commit package fmt =
