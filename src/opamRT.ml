@@ -290,7 +290,7 @@ let init_reinstall_u contents_kind path =
 let test_repo_update_u path =
   log "test-repo-update %s" (OpamFilename.Dir.to_string path);
   let { repo_root; repo_url; opam_root ; _ } = read_config path in
-  let commits = Git.commits repo_root in
+  let commits = List.tl @@ List.rev @@ Git.commits repo_root in
   let stop_server = start_file_server repo_root repo_url in
 
   (* OpamConsole.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
