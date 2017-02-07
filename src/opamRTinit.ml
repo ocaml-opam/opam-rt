@@ -75,6 +75,12 @@ let random_list n fn =
 let create_repo_with_history repo contents_root =
   OpamFilename.mkdir repo;
   Git.init repo;
+  let repo_file =
+    OpamFile.Repo.create ~opam_version:OpamVersion.current_nopatch ()
+  in
+  let repo_filename = OpamRepositoryPath.repo repo in
+  OpamFile.Repo.write repo_filename repo_file;
+  Git.commit_file repo (OpamFile.filename repo_filename) "Initialise repo";
   let all = [
     a1 contents_root 0;
     a1 contents_root 1;
@@ -91,6 +97,12 @@ let create_repo_with_history repo contents_root =
 let create_simple_repo repo contents_root contents_kind =
   OpamFilename.mkdir repo;
   Git.init repo;
+  let repo_file =
+    OpamFile.Repo.create ~opam_version:OpamVersion.current_nopatch ()
+  in
+  let repo_filename = OpamRepositoryPath.repo repo in
+  OpamFile.Repo.write repo_filename repo_file;
+  Git.commit_file repo (OpamFile.filename repo_filename) "Initialise repo";
   let package0 = package "a" 1 contents_kind contents_root ~gener_archive:false 10 in
   Packages.add repo contents_root package0;
   let all =
