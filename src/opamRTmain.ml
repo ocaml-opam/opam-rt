@@ -89,9 +89,9 @@ let data_dir =
 let apply_data_dir data_dir =
   OpamRTcommon.datadir := OpamFilename.Dir.of_string data_dir
 
-let mk_opt ?section ?vopt flags value doc conv default =
+let mk_opt ?section ?vopt flags value doc kind default =
   let doc = Arg.info ?docs:section ~docv:value ~doc flags in
-  Arg.(value & opt ?vopt conv default & doc)
+  Arg.(value & opt ?vopt kind default & doc)
 
 let repo_kinds = [
   "http" , `http;
