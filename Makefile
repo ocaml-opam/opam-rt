@@ -1,7 +1,7 @@
 BUILD=ocamlbuild -use-ocamlfind -pkgs opam-client,cohttp.lwt,re.str -no-links -cflags -bin-annot
 TARGETS=src/opamRTmain.native src/file_server.native
 OPAMRT=OPAMYES=1 OPAMSWITCH= ./opam-rt
-TESTDIR=/tmp/xxx
+TESTDIR=/tmp/opam-rt
 KINDS = local http git
 
 .PHONY: all opam-rt run
