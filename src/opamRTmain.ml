@@ -162,11 +162,8 @@ let run_test test kind path =
       (match kind with
        | Some k -> List.assoc k (List.map (fun (a,b) -> b,a) repo_kinds)
        | None -> "none")
-      (match OpamSolverConfig.external_solver_command
-               ~input:"$in" ~output:"$out" ~criteria:"$criteria"
-       with
-       | Some s -> String.concat " " s
-       | None -> "internal")
+      (let module S = (val OpamSolverConfig.(Lazy.force !r.solver)) in
+       S.name)
   in
   let current =
     List.filter

@@ -803,13 +803,8 @@ module Big_upgrade : TEST = struct
     check_export opam_root (data "init.export");
     step "upgrade";
     OPAM.upgrade opam_root ~fake:true [];
-    try
-      check_export opam_root (data "expected.export");
-      stop_server ()
-    with Failure _ when not (OpamCudf.external_solver_available ()) ->
-      OpamConsole.note "Expected failure since the external solver is disabled";
-      stop_server ();
-      raise Allowed_failure
+    check_export opam_root (data "expected.export");
+    stop_server ()
 end
 
 let tests =
