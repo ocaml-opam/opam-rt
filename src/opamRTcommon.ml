@@ -80,7 +80,8 @@ module Git = struct
           exec repo [ "git"; "add"; file ];
           exec repo [ "git"; "commit"; "-m"; msg; file; "--allow-empty" ];
         else
-          OpamConsole.error_and_exit "Cannot commit %s" (OpamFilename.to_string file);
+          OpamConsole.error_and_exit `Internal_error
+            "Cannot commit %s" (OpamFilename.to_string file);
       ) fmt
 
   let commit_dir repo dir fmt =
@@ -93,7 +94,7 @@ module Git = struct
           exec repo [ "git"; "add"; "--all"; dir ];
           exec repo [ "git"; "commit"; "-m"; msg; "--allow-empty" ];
         else
-          OpamConsole.error_and_exit "Cannot commit %s"
+          OpamConsole.error_and_exit `Internal_error "Cannot commit %s"
             (OpamFilename.Dir.to_string dir);
       ) fmt
 
@@ -604,7 +605,7 @@ module Check = struct
     OpamPackage.Set.iter (fun nv ->
         let file = OpamPath.Switch.installed_opam root system_switch nv in
         if not (OpamFile.exists file) then
-          OpamConsole.error_and_exit
+          OpamConsole.error_and_exit `False
             "fatal: %s is missing" (OpamFile.to_string file)
       ) installed
 
@@ -614,7 +615,7 @@ module Check = struct
     (* metadata *)
     let installed = installed root in
     if OpamPackage.Set.is_empty installed then
-      OpamConsole.error_and_exit
+      OpamConsole.error_and_exit `Configuration_error
         "No package are installed. Tests are meaningless, stopping.";
     let installed_opams =
       OpamPackage.Set.fold (fun nv acc ->

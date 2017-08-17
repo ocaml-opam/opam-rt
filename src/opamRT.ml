@@ -26,7 +26,7 @@ open OpamStd.Option.Op
 exception Not_available
 exception Allowed_failure
 
-let exit = OpamStd.Sys.exit
+let exit = OpamStd.Sys.exit_because
 
 let log fmt =
   OpamConsole.log "RT" fmt
@@ -39,7 +39,7 @@ let error e =
     (Printexc.to_string e)
     (Color.red "[ERROR]")
     (String.concat " " (Array.to_list Sys.argv));
-  exit 1
+  exit `False
 
 let newline () =
   OpamConsole.msg "\n"
@@ -68,7 +68,8 @@ let base_repo_name = OpamRepositoryName.of_string "base"
 
 let create_config kind path =
   if OpamFilename.exists_dir path then
-    OpamConsole.error_and_exit "%s already exists." (OpamFilename.Dir.to_string path);
+    OpamConsole.error_and_exit `Configuration_error
+      "%s already exists." (OpamFilename.Dir.to_string path);
   OpamFilename.mkdir path;
   let repo_root = path / "repo" in
   let opam_root = path / "opam" in
@@ -96,7 +97,8 @@ let repos_config_file path =
 
 let read_config path =
   if not (OpamFilename.exists_dir path) then
-    OpamConsole.error_and_exit "opam-rt has not been initialized properly";
+    OpamConsole.error_and_exit `Configuration_error
+      "opam-rt has not been initialized properly";
   let repos = OpamFile.Repos_config.read (repos_config_file path) in
   let repo_name = base_repo_name in
   let opam_root = path / "opam" in
@@ -372,7 +374,9 @@ let test_pin_install_u path =
   (try
     OPAM.install opam_root b ~version:(v 1);
     failwith "should fail"
-   with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
+   with
+     OpamSystem.Process_error e
+     when e.OpamProcess.r_code = OpamStd.Sys.get_exit_code `No_solution -> ());
   check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
   step "Cleanup";
   OPAM.remove opam_root ~auto:true b;
@@ -383,7 +387,9 @@ let test_pin_install_u path =
   (try
     OPAM.install opam_root b ~version:(v 2);
     failwith "should fail"
-   with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
+   with
+     OpamSystem.Process_error e
+     when e.OpamProcess.r_code = OpamStd.Sys.get_exit_code `No_solution -> ());
   check_installed path [];
   step "Install b, should get version 1";
   OPAM.install opam_root b;
@@ -448,7 +454,9 @@ let test_reinstall_u path =
   (try
     OPAM.install opam_root d;
     failwith "should fail"
-   with OpamSystem.Process_error {OpamProcess.r_code = 3} -> ());
+   with
+     OpamSystem.Process_error e
+     when e.OpamProcess.r_code =  OpamStd.Sys.get_exit_code `No_solution -> ());
   step "Revert to the state with all packages installed and b removed upstream";
   let b1 = Packages.add_depend_with_runtime_checks opam_root
       (OpamRTinit.package "b" 1 (Some `rsync) contents_root 451)
