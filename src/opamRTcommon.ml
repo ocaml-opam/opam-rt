@@ -161,7 +161,7 @@ let random_string n =
       let c = int_of_char 'A' + Random.int 58 in
       OpamCompat.Bytes.set s i (char_of_int c)
     ) s;
-  s
+  Bytes.to_string s
 
 let base = OpamFilename.Base.of_string
 
