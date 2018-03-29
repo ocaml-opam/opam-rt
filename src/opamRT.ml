@@ -152,7 +152,7 @@ let check_installed path  ?(roots = []) wished_list =
 let update_server_index repo_root repo_url =
   match repo_url.OpamUrl.backend with
   | `http ->
-      OpamFilename.exec repo_root [["opam-admin"; "make"; "--index"]]
+      OpamFilename.exec repo_root [["opam"; "admin"; "index"]]
   | _ -> ()
 
 let start_file_server repo_root repo_url =
