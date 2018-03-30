@@ -15,5 +15,12 @@ and written in a real programming language).
 * pinned packages
 * development packages
 
+### Compilation
+
+Make sure you have the required dependencies installed (using `opam`):
+
+* `cohttp-lwt-unix`
+* `opam-client`
+
 Any external contribution, as testing ideas or pull requests are most
  than welcome.

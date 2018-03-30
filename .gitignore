@@ -1,4 +1,6 @@
 *~
+.*.sw*
 _build/
+file-server
 opam-rt
 results
