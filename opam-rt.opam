@@ -1,0 +1,17 @@
+opam-version: "2.0"
+maintainer: "opam-devel@lists.ocaml.org"
+authors: [
+  "Thomas Gazagnaire <thomas@gazagnaire.org>"
+  "Louis Gesbert <louis.gesbert@ocamlpro.com>"
+]
+homepage: "https://opam.ocaml.org/"
+bug-reports: "https://github.com/ocaml/opam-rt/issues"
+dev-repo: "git+https://github.com/ocaml/opam-rt.git"
+build: [
+  [make]
+]
+depends: [
+  "opam-client"
+  "cohttp-lwt-unix"
+]
+synopsis: "Test suite for opam"
