@@ -39,7 +39,7 @@ let make_server root port =
   let callback conn_id req body =
     let path = Uri.path (Request.uri req) in
     Printf.printf "Request received: PATH=%s\n%!" path;
-    let path = Re_str.split_delim (Re_str.regexp_string "/") path in
+    let path = Re.(split (compile (rep1 (char '/')))) path in
     let path = List.filter ((<>) "") path in
     process root path in
   let conn_closed _ = () in
@@ -61,4 +61,4 @@ let () =
     Printf.eprintf "%s is not a directory.\n" root;
     exit 4;
   );
-  Lwt_unix.run (make_server root 1234)
+  Lwt_main.run (make_server root 1234)
