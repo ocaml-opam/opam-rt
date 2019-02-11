@@ -768,10 +768,10 @@ module Big_upgrade : TEST = struct
           ["tar"; "xzf"; OpamFilename.to_string (data "repo_packages.tar.gz")]);
     let stop_server = start_file_server repo_root repo_url in
     Git.init repo_root;
-    let git_dir_re = Re_str.regexp "\\(.*/\\)?\\.git\\(/.*\\)?" in
+    let git_dir_re = Re.(compile (str "\\(.*/\\)?\\.git\\(/.*\\)?")) in
     Git.add_list repo_root
       (OpamStd.List.filter_map (fun f ->
-           if Re_str.string_match git_dir_re f 0 then None
+           if Re.(all git_dir_re f) <> [] then None
            else Some (OpamFilename.of_string f))
           (OpamSystem.rec_files
              (OpamFilename.Dir.to_string repo_root)));
