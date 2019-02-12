@@ -12,6 +12,6 @@ build: [
 ]
 depends: [
   "opam-client"
-  "cohttp-lwt-unix"
+  "cohttp-lwt-unix" { < "2.0.0" }
 ]
 synopsis: "Test suite for opam"
