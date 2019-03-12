@@ -508,11 +508,7 @@ let repo_opams repo =
       OpamRepositoryPath.packages repo pfx nv |>
       OpamFileTools.read_opam |>
       function Some x -> x | None -> assert false)
-    (OpamRepository.packages_with_prefixes
-       {repo_root = repo;
-        repo_name = OpamRepositoryName.of_string "foo";
-        repo_url = OpamUrl.empty;
-        repo_trust = None})
+    (OpamRepository.packages_with_prefixes repo)
 
 module Check = struct
 
@@ -673,7 +669,7 @@ module Check = struct
       in
       let files = match OpamFile.OPAM.metadata_dir opam_file with
         | None   -> A.Map.empty
-        | Some d -> attributes (d  / "files") in
+        | Some (_, d) -> attributes (OpamFilename.Dir.of_string d  / "files") in
 
       A.Map.union (fun x y -> x) files base in
 
