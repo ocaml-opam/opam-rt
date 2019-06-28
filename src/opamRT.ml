@@ -763,7 +763,7 @@ module Big_upgrade : TEST = struct
     OpamFilename.mkdir repo_root;
     OpamSystem.in_dir (OpamFilename.Dir.to_string repo_root) (fun () ->
         OpamFile.Repo.write (OpamFile.make (OpamFilename.of_string "repo"))
-          (OpamFile.Repo.create ~opam_version:OpamVersion.current_nopatch ());
+          (OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ());
         OpamSystem.command
           ["tar"; "xzf"; OpamFilename.to_string (data "repo_packages.tar.gz")]);
     let stop_server = start_file_server repo_root repo_url in
