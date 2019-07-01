@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 OCamlPro
+ * Copyright (c) 2013-2019 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
  *         Louis Gesbert <louis.gesbert@ocamlpro.com>
  *
@@ -18,7 +18,6 @@
 
 open OpamRTcommon
 open OpamTypes
-open OpamFilename.Op
 
 let shuffle l =
   let a = Array.of_list l in
@@ -34,9 +33,7 @@ let package name version contents_kind contents_root ?(gener_archive=true) seed 
   Packages.({
     nv;
     prefix   = prefix nv;
-    opam     = opam nv seed;
-    url      = url contents_kind (contents_root / pkg) seed;
-    descr    = descr seed;
+    opam     = opam nv contents_kind OpamFilename.Op.(contents_root / pkg) seed;
     files    = files_;
     contents;
     archive  = if gener_archive then archive (files_ @ contents) nv seed else None;
@@ -50,7 +47,7 @@ let a2 contents_root =
 
 let not_very_random n =
   let i = Random.int n in
-  if i > Pervasives.(/) n 2 then 0 else i
+  if i > n / 2 then 0 else i
 
 let ar root _ =
   let seed = not_very_random 10 in
@@ -104,5 +101,5 @@ let create_simple_repo repo contents_root contents_kind =
   List.iter (fun package ->
       Packages.write repo contents_root package
     ) all;
-  Git.branch (contents_root / "a.1");
+  Git.branch OpamFilename.Op.(contents_root / "a.1");
   Git.commit repo "Add package"
