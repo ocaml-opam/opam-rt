@@ -106,14 +106,22 @@ module OPAM : sig
   val install_dir : dirname -> ?recs:bool -> ?subpath:string -> dirname -> unit
   val reinstall : dirname -> ?version:version -> name -> unit
   val remove : dirname -> ?auto:bool -> name -> unit
+  val remove_dir : dirname -> ?auto:bool -> ?recs:bool -> ?subpath:string -> dirname -> unit
   val update : dirname -> unit
   val upgrade : dirname -> ?fake:bool -> name list -> unit
-  val pin : dirname -> ?action:bool -> name -> dirname -> unit
+  val pin :
+  dirname -> ?recs:bool -> ?subpath:string -> ?action:bool
+  -> name -> dirname -> unit
   val vpin : dirname -> name -> version -> unit
-  val pin_kind :
-    dirname -> ?action:bool -> ?kind:string -> name -> string -> unit
+  val pin_kind : dirname -> ?action:bool -> ?kind:string -> name -> string -> unit
+  val pin_dir :
+    dirname -> ?recs:bool -> ?subpath:string -> ?action:bool -> ?kind:string
+    -> dirname -> unit
   val unpin : dirname -> ?action:bool -> name -> unit
+  val unpin_dir :
+  dirname -> ?recs:bool -> ?subpath:string -> ?action:bool -> dirname -> unit
   val pin_edit : dirname -> ?action:bool -> name -> (filename -> 'a) -> unit
+  val pinned: dirname -> string list list
   val import : dirname -> ?fake:bool -> filename -> unit
   val export : dirname -> filename -> unit
 end
