@@ -1,7 +1,8 @@
 (*
  * Copyright (c) 2013-2019 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
- *         Louis Gesbert <louis.gesbert@ocamlpro.com>
+ *         Louis Gesbert <louis.gesbert@ocamlpro.com>,
+ *         Raja Boujbel <raja.boujbel@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,8 +17,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open OpamRTcommon
 open OpamTypes
+
+module Git = OpamRTgit
+module OPAM = OpamRTopam
+module Packages = OpamRTpackages
 
 let shuffle l =
   let a = Array.of_list l in
@@ -28,16 +32,18 @@ let shuffle l =
 let package name version contents_kind contents_root ?(gener_archive=true) seed =
   let pkg = Printf.sprintf "%s.%d" name version in
   let nv = OpamPackage.of_string pkg in
-  let contents = Contents.create nv seed in
+  let contents = Packages.content_create nv seed in
   let files_ = Packages.files seed in
   Packages.({
-    nv;
-    prefix   = prefix nv;
-    opam     = opam nv contents_kind OpamFilename.Op.(contents_root / pkg) seed;
-    files    = files_;
-    contents;
-    archive  = if gener_archive then archive (files_ @ contents) nv seed else None;
-  })
+      nv;
+      prefix = prefix nv;
+      opam =
+        opam nv contents_kind OpamFilename.Op.(contents_root / pkg) seed;
+      files = files_;
+      contents;
+      archive =
+        if gener_archive then archive (files_ @ contents) nv seed else None;
+    })
 
 let a1 contents_root =
   package "a" 1 (Some `rsync) contents_root
@@ -91,13 +97,17 @@ let create_simple_repo repo contents_root contents_kind =
   let repo_filename = OpamRepositoryPath.repo repo in
   OpamFile.Repo.write repo_filename repo_file;
   Git.commit_file repo (OpamFile.filename repo_filename) "Initialise repo";
-  let package0 = package "a" 1 contents_kind contents_root ~gener_archive:false 10 in
+  let package0 =
+    package "a" 1 contents_kind contents_root ~gener_archive:false 10
+  in
   Packages.add repo contents_root package0;
   let all =
     package0
     :: random_list 20 (fun _ ->
-        package "a" 1 contents_kind contents_root ~gener_archive:false (Random.int 20)
-      ) in
+        package "a" 1 contents_kind contents_root
+          ~gener_archive:false (Random.int 20)
+      )
+  in
   List.iter (fun package ->
       Packages.write repo contents_root package
     ) all;

@@ -19,14 +19,33 @@
 
 open OpamTypes
 
+val commit: dirname -> ('a, unit, string, unit) format4 -> 'a
 
-val shuffle: 'a list -> 'a list
+val commit_file:
+  dirname -> filename -> ('a, unit, string, unit) format4 -> 'a
 
-val package:
-  string -> int -> [> `git | `rsync ] option -> dirname -> ?gener_archive:bool
-  -> int -> OpamRTpackages.t
+val commit_dir:
+  dirname -> dirname -> ('a, unit, string, unit) format4 -> 'a
 
-val create_repo_with_history: dirname -> dirname -> unit
+val revision: dirname -> string
 
-val create_simple_repo:
-  dirname -> dirname -> [> `git | `rsync ] option -> unit
+val commits: dirname -> string list
+
+val init: dirname -> unit
+
+val test_tag: string
+
+val branch: dirname -> unit
+
+val master: dirname -> unit
+
+val add: dirname -> filename -> unit
+
+val add_list: dirname -> filename list -> unit
+
+val checkout: dirname -> string -> unit
+
+val msg:
+  dirname -> string -> package -> ('a, unit, string, unit) format4 -> 'a
+
+

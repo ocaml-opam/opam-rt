@@ -19,14 +19,6 @@
 
 open OpamTypes
 
+val packages: dirname -> dirname -> unit
 
-val shuffle: 'a list -> 'a list
-
-val package:
-  string -> int -> [> `git | `rsync ] option -> dirname -> ?gener_archive:bool
-  -> int -> OpamRTpackages.t
-
-val create_repo_with_history: dirname -> dirname -> unit
-
-val create_simple_repo:
-  dirname -> dirname -> [> `git | `rsync ] option -> unit
+val contents: dirname -> package -> OpamFile.OPAM.t -> unit

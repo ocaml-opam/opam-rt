@@ -1,7 +1,8 @@
 (*
  * Copyright (c) 2013-2019 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
- *         Louis Gesbert <louis.gesbert@ocamlpro.com>
+ *         Louis Gesbert <louis.gesbert@ocamlpro.com>,
+ *         Raja Boujbel <raja.boujbel@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,10 +18,9 @@
  *)
 
 open OpamTypes
-open OpamTypesBase
 open Cmdliner
 
-let version = "0.0.1"
+let version = "0.0.2"
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
@@ -34,11 +34,14 @@ let help_sections = [
   `S "AUTHOR";
   `P "Thomas Gazagnaire   <thomas.gazagnaire@ocamlpro.com>"; `Noblank;
   `P "Louis Gesbert       <louis.gesbert@ocamlpro.com>"; `Noblank;
+  `P "Raja Boujbel <raja.boujbel@ocamlpro.com>"; `Noblank;
 ]
 
 let dirname =
   let parse str = `Ok (OpamFilename.Dir.of_string str) in
-  let print ppf dir = Format.pp_print_string ppf (OpamFilename.prettify_dir dir) in
+  let print ppf dir =
+    Format.pp_print_string ppf (OpamFilename.prettify_dir dir)
+  in
   parse, print
 
 (* HELP *)
@@ -53,15 +56,19 @@ let help =
     let doc = Arg.info [] ~docv:"TOPIC" ~doc:"The topic to get help on." in
     Arg.(value & pos 0 (some string) None & doc )
   in
-  let help man_format cmds topic = match topic with
+  let help man_format cmds topic =
+    match topic with
     | None       -> `Help (`Pager, None)
     | Some topic ->
       let topics = "topics" :: cmds in
-      let conv, _ = Cmdliner.Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
+      let conv, _ =
+        Cmdliner.Arg.enum (List.rev_map (fun s -> (s, s)) topics)
+      in
       match conv topic with
       | `Error e -> `Error (false, e)
       | `Ok t when t = "topics" -> List.iter print_endline cmds; `Ok ()
-      | `Ok t -> `Help (man_format, Some t) in
+      | `Ok t -> `Help (man_format, Some t)
+  in
 
   Term.(ret (pure help $Term.man_format $Term.choice_names $topic)),
   Term.info "help" ~doc ~man
@@ -76,18 +83,22 @@ let test_case =
   Arg.(required & pos 1 (some case) None & doc)
 
 let seed_flag =
-  let doc = Arg.info ~docv:"SEED" ~doc:"Value of the random seed." ["S";"seed"] in
+  let doc =
+    Arg.info ~docv:"SEED" ~doc:"Value of the random seed." ["S";"seed"]
+  in
   Arg.(value & opt int 1664 & doc)
 
 let set_seed seed =
-  OpamRTcommon.set_seed seed
+  OpamRT.set_seed seed
 
 let data_dir =
-  let doc = "Set the directory where the data for the some tests can be found" in
+  let doc =
+    "Set the directory where the data for the some tests can be found"
+  in
   Arg.(value & opt dir "data" & info ~doc ["--data"])
 
 let apply_data_dir data_dir =
-  OpamRTcommon.datadir := OpamFilename.Dir.of_string data_dir
+  OpamRT.set_datadir (OpamFilename.Dir.of_string data_dir)
 
 let mk_opt ?section ?vopt flags value doc kind default =
   let doc = Arg.info ?docs:section ~docv:value ~doc flags in
@@ -105,11 +116,11 @@ let repo_kind_flag =
   let kinds =
     (* main kinds *)
     repo_kinds @ [
-    (* aliases *)
-    "wget" , `http;
-    "curl" , `http;
-    "rsync", `rsync;
-  ] in
+      (* aliases *)
+      "wget" , `http;
+      "curl" , `http;
+      "rsync", `rsync;
+    ] in
   mk_opt ["k";"kind"]
     "KIND" "Specify the kind of the repository to be set (the main ones \
             are 'http', 'local', 'git', 'darcs' or 'hg')."
@@ -130,7 +141,8 @@ let init =
     set_seed seed;
     apply_data_dir data;
     let module Test = (val test: OpamRT.TEST) in
-    try Test.init kind path with OpamRT.Not_available -> () in
+    try Test.init kind path with OpamRT.Not_available -> ()
+  in
   Term.(pure init $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
@@ -148,17 +160,20 @@ let run_test test kind path =
   let current =
     if OpamFilename.exists result_file then
       OpamStd.String.split (OpamFilename.read result_file) '\n'
-    else []  in
+    else []
+  in
   let opam_version =
     match OpamSystem.read_command_output ["opam"; "--git-version"] with
     | [v] -> v
     | _ -> "none"
   in
-  let current = match current with
+  let current =
+    match current with
     | title::results when title = opam_version -> List.rev results
     | _ -> []
   in
-  let title = Printf.sprintf "%-12s / %-5s / %-8s :" Test.name
+  let title =
+    Printf.sprintf "%-12s / %-5s / %-8s :" Test.name
       (match kind with
        | Some k -> List.assoc k (List.map (fun (a,b) -> b,a) repo_kinds)
        | None -> "none")
@@ -170,7 +185,8 @@ let run_test test kind path =
       (fun s -> not (OpamStd.String.starts_with ~prefix:title s))
       current
   in
-  let results = match result with
+  let results =
+    match result with
     | `Ok -> Printf.sprintf "%s\t%s" title "OK" :: current
     | `Skipped -> Printf.sprintf "%s\t%s" title "SKIP" :: current
     | `Failed -> Printf.sprintf "%s\t%s" title "FAIL" :: current
@@ -214,11 +230,15 @@ let test =
     apply_data_dir data;
     set_seed seed;
     let module Test = (val test: OpamRT.TEST) in
-    if OpamFilename.exists_dir path
-    && OpamConsole.confirm "Do you want to remove %s ?" (OpamFilename.Dir.to_string path)
-    then OpamFilename.rmdir path;
+    if
+      OpamFilename.exists_dir path
+      && OpamConsole.confirm "Do you want to remove %s ?"
+        (OpamFilename.Dir.to_string path)
+    then
+      OpamFilename.rmdir path;
     (try Test.init kind path with OpamRT.Not_available -> ());
-    run_test test kind path in
+    run_test test kind path
+  in
   Term.(pure test $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "test" ~doc ~man
 
@@ -240,7 +260,7 @@ let list =
 let default =
   let doc = "Regression Testing Framework for OPAM" in
   let man = [
-    `P "Use either $(b,opam-rt <command> --help) or $(b,opam-rt help <command>) \
+    `P "Use either $(b,opam-rt <command> --help) or $(b,opam-rt help <command>)\
         for more information on a specific command.";
   ] @  help_sections
   in
