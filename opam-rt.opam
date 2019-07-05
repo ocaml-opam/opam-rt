@@ -1,15 +1,15 @@
 opam-version: "2.0"
+version:"0.0.2"
 maintainer: "opam-devel@lists.ocaml.org"
 authors: [
+  "Raja Boujbel <raja.boujbel@ocamlpro.com>"
   "Thomas Gazagnaire <thomas@gazagnaire.org>"
   "Louis Gesbert <louis.gesbert@ocamlpro.com>"
 ]
 homepage: "https://opam.ocaml.org/"
 bug-reports: "https://github.com/ocaml/opam-rt/issues"
 dev-repo: "git+https://github.com/ocaml/opam-rt.git"
-build: [
-  [make]
-]
+build: [ make ]
 depends: [
   "opam-client"
   "cohttp-lwt-unix" { < "2.0.0" }

@@ -1,7 +1,8 @@
 (*
  * Copyright (c) 2013-2019 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
- *         Louis Gesbert <louis.gesbert@ocamlpro.com>
+ *         Louis Gesbert <louis.gesbert@ocamlpro.com>,
+ *         Raja Boujbel <raja.boujbel@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,14 +18,15 @@
  *)
 
 open OpamFilename.Op
-open OpamRTcommon
 open OpamTypes
-open OpamTypesBase
-open OpamStd.Op
-open OpamStd.Option.Op
 
 exception Not_available
 exception Allowed_failure
+
+module Git = OpamRTgit
+module OPAM = OpamRTopam
+module Packages = OpamRTpackages
+module Check = OpamRTcheck
 
 let exit = OpamStd.Sys.exit_because
 
@@ -32,20 +34,28 @@ let log fmt =
   OpamConsole.log "RT" fmt
 
 let ok () =
-  OpamConsole.msg "%s\n%!" (Color.green "[SUCCESS]")
+  OpamConsole.msg "%s\n%!" (OpamConsole.colorise `green "[SUCCESS]")
 
 let error e =
   OpamConsole.msg "%s\n%s %s\n%!"
     (Printexc.to_string e)
-    (Color.red "[ERROR]")
+    (OpamConsole.colorise `red "[ERROR]")
     (String.concat " " (Array.to_list Sys.argv));
   exit `False
 
 let newline () =
   OpamConsole.msg "\n"
 
+let seed_ref = ref 1664
+let set_seed seed = seed_ref := seed
+let seed () = !seed_ref
+
+let datadir = ref (OpamFilename.Dir.of_string "data")
+let set_datadir d = datadir := d
+let data s = OpamFilename.create !datadir (OpamFilename.Base.of_string s)
+
 let run f x =
-  let seed = OpamRTcommon.seed () in
+  let seed = seed () in
   Random.init seed;
   try
     OpamConsole.msg "SEED %d\n" seed;
@@ -55,6 +65,16 @@ let run f x =
   with e ->
     newline ();
     error e
+
+let step () =
+  let i = ref 0 in
+  fun msg ->
+    incr i;
+    OpamConsole.msg "%s %s\n"
+      (OpamConsole.colorise `yellow @@ Printf.sprintf ">> step %d <<" !i) msg
+
+
+(** Config *)
 
 type config = {
   repo_name    : OpamRepositoryName.t;
@@ -75,7 +95,8 @@ let create_config kind path =
   let opam_root = path / "opam" in
   let contents_root = path / "contents" in
   let repo_name = base_repo_name in
-  let repo_url = match kind with
+  let repo_url =
+    match kind with
     | Some `git   ->
       { OpamUrl.backend = `git;
         transport = "file";  path = OpamFilename.Dir.to_string repo_root;
@@ -89,7 +110,8 @@ let create_config kind path =
       { OpamUrl.backend = `rsync;
         transport = "file";  path = OpamFilename.Dir.to_string repo_root;
         hash = None }
-    | _           -> raise Not_available in
+    | _           -> raise Not_available
+  in
   { repo_name; repo_root; repo_url; opam_root; contents_root }
 
 let repos_config_file path =
@@ -114,12 +136,16 @@ let write_repo_config path repo_name repo_url =
   OpamFile.Repos_config.write (repos_config_file path)
     (OpamRepositoryName.Map.singleton repo_name (Some repo_url))
 
+
+(** opam functions *)
+
 type installed = { installed: package_set; installed_roots: package_set }
+
 let read_installed path =
   let opam_root = path / "opam" in
   let st =
     OpamFile.SwitchSelections.read
-      (OpamPath.Switch.selections opam_root OpamRTcommon.system_switch)
+      (OpamPath.Switch.selections opam_root OPAM.default_switch)
   in
   { installed = st.sel_installed;
     installed_roots = st.sel_roots; }
@@ -132,7 +158,7 @@ let check_installed path  ?(roots = []) wished_list =
     (String.concat " "
        (List.map (fun nv ->
             if OpamPackage.Set.mem nv roots
-            then "\027[4m" ^ OpamPackage.to_string nv ^ "\027[m"
+            then OpamConsole.colorise `underline (OpamPackage.to_string nv)
             else OpamPackage.to_string nv)
            list))
   in
@@ -140,11 +166,11 @@ let check_installed path  ?(roots = []) wished_list =
   && (roots = [] || OpamPackage.Set.compare wished_roots installed_roots = 0)
   then
     OpamConsole.msg "%s installed: %s\n"
-      (Color.green "[OK]")
+      (OpamConsole.colorise `green "[OK]")
       (pkg_list installed_roots wished_list)
   else
     (OpamConsole.msg "%s installed: %s\n       expecting: %s\n"
-       (Color.red "[FAIL]")
+       (OpamConsole.colorise `red "[FAIL]")
        (pkg_list installed_roots (OpamPackage.Set.elements installed))
        (pkg_list wished_roots wished_list);
      failwith "Installed packages don't match expectations")
@@ -167,44 +193,45 @@ let check_pinned path ?kind wished =
   let wished = OpamPackage.Set.of_list wished in
   if OpamPackage.Set.compare wished packages = 0 then
     OpamConsole.msg "%s %spinned: %s\n"
-      (Color.green "[OK]")
+      (OpamConsole.colorise `green "[OK]")
       (match kind with | Some k -> k^"-" | None -> "")
       (OpamPackage.Set.to_string wished)
   else
     (OpamConsole.msg "%s %spinned: %s\n       expecting: %s\n"
-       (Color.red "[FAIL]")
+       (OpamConsole.colorise `red "[FAIL]")
        (match kind with | Some k -> k^"-" | None -> "")
        (OpamPackage.Set.to_string packages)
        (OpamPackage.Set.to_string wished);
      failwith "Pinned packages don't match expectations")
 
 
+(** Server *)
 let update_server_index repo_root repo_url =
   match repo_url.OpamUrl.backend with
   | `http ->
-      OpamFilename.exec repo_root [["opam"; "admin"; "index"]]
+    OpamFilename.exec repo_root [["opam"; "admin"; "index"]]
   | _ -> ()
 
 let start_file_server repo_root repo_url =
   match repo_url.OpamUrl.backend with
   | `http ->
-      let cmd = Filename.concat (Sys.getcwd ()) "file-server" in
-      OpamFilename.mkdir repo_root;
-      update_server_index repo_root repo_url;
-      let dir = OpamFilename.Dir.to_string repo_root in
-      let p =
-        OpamProcess.run_background
-          (OpamProcess.command ~dir cmd [OpamFilename.Dir.to_string repo_root])
-      in
-      let stop () =
-        try
-          Unix.kill p.OpamProcess.p_pid Sys.sigterm;
-          ignore (OpamProcess.wait p)
-        with Unix.Unix_error _ -> ()
-      in
-      at_exit stop;
-      Unix.sleep 2;
-      stop
+    let cmd = Filename.concat (Sys.getcwd ()) "file-server" in
+    OpamFilename.mkdir repo_root;
+    update_server_index repo_root repo_url;
+    let dir = OpamFilename.Dir.to_string repo_root in
+    let p =
+      OpamProcess.run_background
+        (OpamProcess.command ~dir cmd [OpamFilename.Dir.to_string repo_root])
+    in
+    let stop () =
+      try
+        Unix.kill p.OpamProcess.p_pid Sys.sigterm;
+        ignore (OpamProcess.wait p)
+      with Unix.Unix_error _ -> ()
+    in
+    at_exit stop;
+    Unix.sleep 2;
+    stop
   | _ -> fun () -> ()
 
 module type TEST = sig
@@ -298,15 +325,21 @@ let init_reinstall_u contents_kind path =
   OpamRTinit.create_simple_repo repo_root contents_root contents_kind;
   let packages =
     let a = OpamRTinit.package "a" 1 (Some `rsync) contents_root 450 in
-    let b = Packages.add_depend_with_runtime_checks opam_root
+    let b =
+      Packages.add_depend_with_runtime_checks opam_root
         (OpamRTinit.package "b" 1 (Some `rsync) contents_root 451)
-        "a" in
-    let c = Packages.add_depend_with_runtime_checks opam_root
+        "a"
+    in
+    let c =
+      Packages.add_depend_with_runtime_checks opam_root
         (OpamRTinit.package "c" 1 (Some `rsync) contents_root 452)
-        "b" in
-    let d = Packages.add_depend_with_runtime_checks opam_root
+        "b"
+    in
+    let d =
+      Packages.add_depend_with_runtime_checks opam_root
         (OpamRTinit.package "d" 1 (Some `rsync) contents_root 453)
-        "c" in
+        "c"
+    in
     [ a; b; c; d ]
   in
   List.iter (Packages.add repo_root contents_root) packages;
@@ -324,10 +357,10 @@ let test_repo_update_u path =
   let { repo_root; repo_url; opam_root ; _ } = read_config path in
   let commits = List.tl @@ List.rev @@ Git.commits repo_root in
   let stop_server = start_file_server repo_root repo_url in
-
   (* OpamConsole.msg "Commits:\n  %s\n\n" (String.concat "\n  " commits); *)
   List.iter (fun commit ->
-      OpamConsole.msg "%s\n" (Color.yellow "*** %s ***" commit);
+      OpamConsole.msg "%s\n"
+        (OpamConsole.colorise `yellow @@ Printf.sprintf "*** %s ***" commit);
       Git.checkout repo_root commit;
       Git.branch repo_root;
       update_server_index repo_root repo_url;
@@ -335,7 +368,6 @@ let test_repo_update_u path =
       OPAM.upgrade opam_root [];
       Check.packages repo_root opam_root;
     ) (OpamRTinit.shuffle commits);
-
   stop_server ()
 
 (* Basic dev package update test: we install the two packages and
@@ -345,22 +377,25 @@ let test_dev_update_u path =
   let { repo_name; repo_root; repo_url; opam_root; contents_root } =
     read_config path
   in
-  let opams = repo_opams repo_root in
+  let opams = OPAM.repo_opams repo_root in
   let opams =
     OpamPackage.Map.union (fun _ x -> x) opams @@
-    repo_opams (OpamPath.Switch.Overlay.dir opam_root system_switch)
+    OPAM.repo_opams
+      (OpamPath.Switch.Overlay.dir opam_root OPAM.default_switch)
   in
-  let packages = OpamPackage.Map.fold (fun nv opam acc ->
-      let url = OpamFile.OPAM.url opam in
-      match url with
-      | None   -> acc
-      | Some u ->
-        match OpamUrl.local_dir (OpamFile.URL.url u) with
-        | Some dir ->
-          (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
-        | None ->
-          acc
-    ) opams [] in
+  let packages =
+    OpamPackage.Map.fold (fun nv opam acc ->
+        let url = OpamFile.OPAM.url opam in
+        match url with
+        | None   -> acc
+        | Some u ->
+          match OpamUrl.local_dir (OpamFile.URL.url u) with
+          | Some dir ->
+            (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
+          | None ->
+            acc
+      ) opams []
+  in
 
   (* install the packages *)
   List.iter (fun (nv, _) ->
@@ -373,7 +408,8 @@ let test_dev_update_u path =
   List.iter (fun (nv, (dir, commits)) ->
       List.iter (fun commit ->
           OpamConsole.msg "%s\n"
-            (Color.yellow "%s %s" (OpamPackage.to_string nv) commit);
+            (OpamConsole.colorise `yellow @@
+             Printf.sprintf "%s %s" (OpamPackage.to_string nv) commit);
           Git.checkout dir commit;
           Git.branch dir;
           OPAM.update opam_root;
@@ -383,23 +419,27 @@ let test_dev_update_u path =
     ) packages
 
 let should_fail rcode exit_code =
-   if rcode = OpamStd.Sys.get_exit_code exit_code then ()
-   else failwith "should fail"
+  if rcode = OpamStd.Sys.get_exit_code exit_code then ()
+  else failwith "should fail"
 
 let test_pin_install_u path =
   log "test-pin-update %s" (OpamFilename.Dir.to_string path);
-  let { repo_name; repo_root; repo_url; opam_root; contents_root } = read_config path in
+  let { repo_name; repo_root; repo_url; opam_root; contents_root } =
+    read_config path
+  in
   let b = OpamPackage.Name.of_string "b" in
   let a = OpamPackage.Name.of_string "a" in
-  let v version = OpamPackage.Version.of_string (string_of_int version) in
+  let v version = OpamPackage.Version.of_string (string_of_int version)
+  in
   let (-) = OpamPackage.create in
   let overlay name =
-    OpamPath.Switch.Overlay.opam opam_root OpamRTcommon.system_switch name in
+    OpamPath.Switch.Overlay.opam opam_root OPAM.default_switch name
+  in
   let map_overlay f pkg =
     let o = overlay pkg in
-    OpamFile.OPAM.write o (f (OpamFile.OPAM.read o)) in
-  let step = let i = ref 0 in
-    fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    OpamFile.OPAM.write o (f (OpamFile.OPAM.read o))
+  in
+  let step = step () in
   step "Install b (version 2)";
   OPAM.install opam_root b;
   check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
@@ -449,8 +489,7 @@ let test_reinstall_u path =
   let v version = OpamPackage.Version.of_string (string_of_int version) in
   let (-) = OpamPackage.create in
   let pkg name = name - v 1 in
-  let step = let i = ref 0 in
-    fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+  let step = step () in
   step "Install d";
   OPAM.install opam_root d;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
@@ -476,9 +515,11 @@ let test_reinstall_u path =
   step "Attempt to reinstall d";
   should_fail (OPAM.install_code opam_root d) `No_solution;
   step "Revert to the state with all packages installed and b removed upstream";
-  let b1 = Packages.add_depend_with_runtime_checks opam_root
+  let b1 =
+    Packages.add_depend_with_runtime_checks opam_root
       (OpamRTinit.package "b" 1 (Some `rsync) contents_root 451)
-      "a" in
+      "a"
+  in
   Packages.add repo_root contents_root b1;
   OPAM.update opam_root;
   OPAM.install opam_root d;
@@ -489,9 +530,11 @@ let test_reinstall_u path =
   OPAM.reinstall opam_root c;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Add a new version of c, then upgrade";
-  let c2 = Packages.add_depend_with_runtime_checks opam_root
+  let c2 =
+    Packages.add_depend_with_runtime_checks opam_root
       (OpamRTinit.package "c" 2 (Some `rsync) contents_root 552)
-      "b" in
+      "b"
+  in
   Packages.add repo_root contents_root c2;
   OPAM.update opam_root;
   OPAM.upgrade opam_root [c];
@@ -519,7 +562,7 @@ let test_reinstall_u path =
   ()
 
 let todo () =
-  OpamConsole.msg "%s\n" (Color.yellow "[TODO]");
+  OpamConsole.msg "%s\n" (OpamConsole.colorise `yellow "[TODO]");
   raise Not_available
 
 let check_and_run kind fn =
@@ -527,37 +570,37 @@ let check_and_run kind fn =
   | Some `http -> todo ()
   | _          -> run fn
 
-module Repo_update : TEST = struct
+module Repo_update = struct
   let name = "repo-update"
   let init kind = run (init_repo_update_u kind)
   let run kind = run test_repo_update_u
 end
 
-module Dev_update : TEST = struct
+module Dev_update = struct
   let name = "dev-update"
   let init kind = check_and_run kind (init_dev_update_u kind)
   let run  kind = check_and_run kind test_dev_update_u
 end
 
-module Pin_update : TEST = struct
+module Pin_update = struct
   let name = "pin-update"
   let init kind = check_and_run kind (init_pin_update_u kind)
   let run  kind = check_and_run kind test_dev_update_u
 end
 
-module Pin_install : TEST = struct
+module Pin_install = struct
   let name = "pin-install"
   let init kind = check_and_run kind (init_pin_install_u kind)
   let run  kind = check_and_run kind test_pin_install_u
 end
 
-module Reinstall : TEST = struct
+module Reinstall = struct
   let name = "reinstall"
   let init kind = check_and_run kind (init_reinstall_u kind)
   let run  kind = check_and_run kind test_reinstall_u
 end
 
-module Dep_cycle : TEST = struct
+module Dep_cycle = struct
   let name = "dep-cycle"
 
   let init_u kind path =
@@ -574,14 +617,17 @@ module Dep_cycle : TEST = struct
       let a2 = OpamRTinit.package "a" 2 (Some `rsync) contents_root 451 in
       let b1 = OpamRTinit.package "b" 1 (Some `rsync) contents_root 452 in
       let b2 = OpamRTinit.package "b" 2 (Some `rsync) contents_root 453 in
-      let a1 = Packages.add_depend_with_runtime_checks opam_root a1
-          ~formula:(Atom (`Eq, FIdent (OpamFilter.ident_of_var
-                                         (OpamVariable.Full.of_string "version"))))
-          "b" in
-      let b2 = Packages.add_depend_with_runtime_checks opam_root b2
-          ~formula:(Atom (`Eq, FIdent (OpamFilter.ident_of_var
-                                         (OpamVariable.Full.of_string "version"))))
-          "a" in
+      let formula =
+        Atom (`Eq,
+              FIdent (OpamFilter.ident_of_var
+                        (OpamVariable.Full.of_string "version")))
+      in
+      let a1 =
+        Packages.add_depend_with_runtime_checks opam_root a1 ~formula "b"
+      in
+      let b2 =
+        Packages.add_depend_with_runtime_checks opam_root b2 ~formula "a"
+      in
       [ a1; a2; b1; b2 ]
     in
     List.iter (Packages.add repo_root contents_root) packages;
@@ -597,8 +643,7 @@ module Dep_cycle : TEST = struct
     let b = OpamPackage.Name.of_string "b" in
     let v version = OpamPackage.Version.of_string (string_of_int version) in
     let (-) = OpamPackage.create in
-    let step = let i = ref 0 in
-      fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    let step = step () in
     step "Install a1";
     OPAM.install opam_root a ~version:(v 1);
     check_installed path [a-v 1;b-v 1];
@@ -619,7 +664,7 @@ module Dep_cycle : TEST = struct
   let run kind = check_and_run kind (run_u kind)
 end
 
-module Pin_advanced : TEST = struct
+module Pin_advanced = struct
   let name = "pin-advanced"
   let init kind = check_and_run kind (init_dev_update_u kind)
 
@@ -629,22 +674,21 @@ module Pin_advanced : TEST = struct
     let z = OpamPackage.Name.of_string "z" in
     let v version = OpamPackage.Version.of_string (string_of_int version) in
     let (-) = OpamPackage.create in
-    let step = let i = ref 0 in
-      fun msg ->
-        incr i;
-        OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg
-    in
+    let step = step () in
     let check_pkg_shares pkg files =
       let files = List.sort compare files in
       let dir =
         OpamFilename.Dir.of_string
-          (OPAM.var opam_root (OpamPackage.Name.to_string pkg ^ ":share")) in
+          (OPAM.var opam_root (OpamPackage.Name.to_string pkg ^ ":share"))
+      in
       let found_files =
-        List.sort compare (List.map
-                             (OpamFilename.remove_prefix dir)
-                             (OpamFilename.rec_files dir)) in
+        List.sort compare
+          (List.map (OpamFilename.remove_prefix dir)
+             (OpamFilename.rec_files dir))
+      in
       if files <> found_files then
-        (OpamConsole.error "Installed files in %s don't match:\n  - found    %s\n  - expected %s"
+        (OpamConsole.error
+           "Installed files in %s don't match:\n  - found    %s\n  - expected %s"
            (OpamFilename.Dir.to_string dir)
            (String.concat " " found_files) (String.concat ", " files);
          failwith "Bad installed files")
@@ -668,7 +712,7 @@ module Pin_advanced : TEST = struct
         [[CString "rm",None; CString "-rf",None;
           CString ("%{"^this^":share}%"), None],None]
       |> OpamFile.OPAM.with_url_opt url
-      |> OpamRTcommon.Packages.mandatory_fields "pin"
+      |> Packages.mandatory_fields "pin"
       |> OpamFile.OPAM.write (OpamFile.make file)
     in
     let tests pin_update pin_target pin_kind pin_version =
@@ -706,8 +750,8 @@ module Pin_advanced : TEST = struct
       step "Pin-edit AND change in-source opam";
       OPAM.pin_edit opam_root ~action:false a
         (write_opam
-          ~url:(OpamFile.URL.create (OpamUrl.of_string (pin_target a)))
-          (a-v 5) ["pin-edit_bis"]);
+           ~url:(OpamFile.URL.create (OpamUrl.of_string (pin_target a)))
+           (a-v 5) ["pin-edit_bis"]);
       pin_update a (fun () ->
           write_opam (a-v 5) ["repin_5bis"]
             (OpamFilename.Dir.of_string "opam" // "opam"));
@@ -748,7 +792,8 @@ module Pin_advanced : TEST = struct
       OpamFilename.in_dir d f in
     tests pin_update
       (fun name ->
-         "file://" ^ OpamFilename.Dir.to_string (pindir / OpamPackage.Name.to_string name))
+         "file://" ^
+         OpamFilename.Dir.to_string (pindir / OpamPackage.Name.to_string name))
       "path"
       (v 5);
 
@@ -762,7 +807,8 @@ module Pin_advanced : TEST = struct
         Git.init d;
       OpamFilename.in_dir d f;
       Git.commit_dir d d "Some commit to %s"
-        (OpamPackage.Name.to_string name) in
+        (OpamPackage.Name.to_string name)
+    in
     OpamFilename.copy_dir ~src:(contents_root / "a.1") ~dst:(pindir / "a");
     Git.master (pindir / "a");
     pin_update a (fun () ->
@@ -855,7 +901,7 @@ module Pin_advanced : TEST = struct
   let run kind = check_and_run kind run_u
 end
 
-module Big_upgrade : TEST = struct
+module Big_upgrade = struct
   let name = "big-upgrade"
 
   let init kind path =
@@ -872,7 +918,7 @@ module Big_upgrade : TEST = struct
 
     OpamFile.Repo.write
       (OpamFile.make OpamFilename.Op.(repo_root // "repo"))
-         (OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ());
+      (OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ());
 
     OpamFilename.extract_in (data "repo_packages.tar.gz") repo_root;
 
@@ -906,18 +952,17 @@ module Big_upgrade : TEST = struct
         (List.map OpamFilename.to_string [reference; exportfile]) in
     if OpamProcess.check_success_and_cleanup ret then
       (OpamConsole.msg "%s Export files matches reference\n"
-         (Color.green "[OK]"))
+         (OpamConsole.colorise `green "[OK]"))
     else
       (OpamConsole.msg "%s Export file differs from %s\n"
-         (Color.red "[FAIL]")
+         (OpamConsole.colorise `red "[FAIL]")
          (OpamFilename.to_string reference);
        failwith "Installed packages don't match expectations")
 
   let run kind path =
     log "test-big-upgrade %s" (OpamFilename.Dir.to_string path);
     let { repo_root; repo_url; opam_root; contents_root; _ } = read_config path in
-    let step = let i = ref 0 in
-      fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+    let step = step () in
     let stop_server = start_file_server repo_root repo_url in
     step "update";
     OPAM.update opam_root;
