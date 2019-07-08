@@ -13,8 +13,8 @@
 )
 
 (executable
-  (name file_server)
+  (name opamRTserver)
   (public_name opam-rt-server)
-  (modules File_server)
+  (modules OpamRTserver)
   (libraries opam-client cohttp-lwt-unix re.str)
 )

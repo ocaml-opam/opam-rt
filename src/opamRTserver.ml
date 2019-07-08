@@ -48,7 +48,7 @@ let make_server root port =
 
 let () =
   if Array.length Sys.argv <> 2 then (
-    Printf.eprintf "usage: file-server <path>\n";
+    Printf.eprintf "usage: opam-rt-server <path>\n";
     exit 2
   );
   let root = Sys.argv.(1) in

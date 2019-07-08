@@ -1,6 +1,9 @@
 *~
 .*.sw*
 _build/
-file-server
+opam-rt-server
 opam-rt
 results
+dune-project
+*.install
+*.merlin

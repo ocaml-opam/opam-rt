@@ -41,4 +41,4 @@ run:
 	@if [ -e failed ]; then rm failed; false; fi
 
 clean:
-	rm -rf _build opam-rt file-server $(TESTDIR)
+	rm -rf _build opam-rt opam-rt-server $(TESTDIR)

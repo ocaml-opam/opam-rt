@@ -215,7 +215,7 @@ let update_server_index repo_root repo_url =
 let start_file_server repo_root repo_url =
   match repo_url.OpamUrl.backend with
   | `http ->
-    let cmd = Filename.concat (Sys.getcwd ()) "file-server" in
+    let cmd = Filename.concat (Sys.getcwd ()) "opam-rt-server" in
     OpamFilename.mkdir repo_root;
     update_server_index repo_root repo_url;
     let dir = OpamFilename.Dir.to_string repo_root in
