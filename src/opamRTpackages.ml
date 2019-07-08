@@ -40,9 +40,10 @@ type t = {
   archive : string option;
 }
 
-let t_url kind path = function
-  | 0 -> None
-  | i ->
+let t_url kind path seed =
+  if seed = 0 then
+    None
+  else
     let url =
       match kind with
       | Some `git   ->
@@ -166,8 +167,6 @@ let file_list_of_t repo t =
 (** Package contents *)
 let clog = OpamConsole.log "CONTENTS"
 
-type contents = (basename * string) list
-
 let content_files seed = [
   OpamFilename.Base.of_string "x/a", random_string (1 + seed * 2), 0o644;
   OpamFilename.Base.of_string "x/b", random_string (1 + seed * 3), 0o644;
@@ -266,7 +265,7 @@ let read repo contents_root prefix nv =
 
 let add repo contents_root t =
   write repo contents_root t;
-  let opam, files, archive = file_list_of_t repo t in
+  let opam, files, _ = file_list_of_t repo t in
   let commit file =
     if OpamFilename.exists file then
       (Git.add repo file;

@@ -70,7 +70,7 @@ val unpin: dirname -> ?action:bool -> name -> unit
 val unpin_dir:
   dirname -> ?recs:bool -> ?subpath:string -> ?action:bool -> dirname -> unit
 
-val pin_edit: dirname -> ?action:bool -> name -> (filename -> 'a) -> unit
+val pin_edit: dirname -> ?action:bool -> name -> (filename -> unit) -> unit
 
 val pinned: dirname -> string list list
 

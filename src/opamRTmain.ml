@@ -17,7 +17,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open OpamTypes
 open Cmdliner
 
 let version = "0.0.2"
@@ -154,7 +153,7 @@ let run_test test kind path =
     | OpamRT.Not_available -> `Skipped
     | OpamRT.Allowed_failure -> `Allowed_fail
     | OpamStd.Sys.Exit 0 -> `Ok
-    | e -> `Failed
+    | _ -> `Failed
   in
   let result_file = OpamFilename.of_string "results" in
   let current =

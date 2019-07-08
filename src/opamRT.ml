@@ -175,7 +175,7 @@ let check_installed path  ?(roots = []) wished_list =
        (pkg_list wished_roots wished_list);
      failwith "Installed packages don't match expectations")
 
-let check_pinned path ?kind wished =
+let _check_pinned path ?kind wished =
   let packages = OPAM.pinned path in
   let packages =
     match kind with
@@ -282,7 +282,7 @@ let init_pin_update_u contents_kind path =
   init_dev_update_u contents_kind path;
   let config = read_config path in
   let pindir = config.contents_root / "a.0" in
-  OpamFilename.move_dir (config.contents_root / "a.1") pindir;
+  OpamFilename.move_dir ~src:(config.contents_root / "a.1") ~dst:pindir;
   OpamConsole.msg "Pinning a ...\n";
   OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
 
@@ -374,7 +374,7 @@ let test_repo_update_u path =
    update their contents *)
 let test_dev_update_u path =
   log "test-base-update %s" (OpamFilename.Dir.to_string path);
-  let { repo_name; repo_root; repo_url; opam_root; contents_root } =
+  let { repo_root; opam_root; _ } =
     read_config path
   in
   let opams = OPAM.repo_opams repo_root in
@@ -424,7 +424,7 @@ let should_fail rcode exit_code =
 
 let test_pin_install_u path =
   log "test-pin-update %s" (OpamFilename.Dir.to_string path);
-  let { repo_name; repo_root; repo_url; opam_root; contents_root } =
+  let { repo_root; opam_root; contents_root; _ } =
     read_config path
   in
   let b = OpamPackage.Name.of_string "b" in
@@ -573,7 +573,7 @@ let check_and_run kind fn =
 module Repo_update = struct
   let name = "repo-update"
   let init kind = run (init_repo_update_u kind)
-  let run kind = run test_repo_update_u
+  let run _kind = run test_repo_update_u
 end
 
 module Dev_update = struct
@@ -637,8 +637,8 @@ module Dep_cycle = struct
 
   let init kind = check_and_run kind (init_u kind)
 
-  let run_u kind path =
-    let { opam_root; contents_root; _ } = read_config path in
+  let run_u _kind path =
+    let { opam_root; _ } = read_config path in
     let a = OpamPackage.Name.of_string "a" in
     let b = OpamPackage.Name.of_string "b" in
     let v version = OpamPackage.Version.of_string (string_of_int version) in
@@ -906,7 +906,7 @@ module Big_upgrade = struct
 
   let init kind path =
     log "init-big-upgrade %s\n" (OpamFilename.Dir.to_string path);
-    let { repo_name; repo_root; repo_url; opam_root; contents_root } =
+    let { repo_name; repo_root; repo_url; opam_root; _ } =
       create_config kind path
     in
     write_repo_config path repo_name (repo_url, None);
@@ -959,9 +959,9 @@ module Big_upgrade = struct
          (OpamFilename.to_string reference);
        failwith "Installed packages don't match expectations")
 
-  let run kind path =
+  let run _kind path =
     log "test-big-upgrade %s" (OpamFilename.Dir.to_string path);
-    let { repo_root; repo_url; opam_root; contents_root; _ } = read_config path in
+    let { repo_root; repo_url; opam_root; _ } = read_config path in
     let step = step () in
     let stop_server = start_file_server repo_root repo_url in
     step "update";

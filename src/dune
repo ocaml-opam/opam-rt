@@ -1,0 +1,20 @@
+(executable
+  (name opamRTmain)
+  (public_name opam-rt)
+  (modules OpamRTmain
+           OpamRT
+           OpamRTcheck
+           OpamRTgit
+           OpamRTinit
+           OpamRTopam
+           OpamRTpackages
+  )
+  (libraries opam-client cohttp-lwt-unix re.str)
+)
+
+(executable
+  (name file_server)
+  (public_name opam-rt-server)
+  (modules File_server)
+  (libraries opam-client cohttp-lwt-unix re.str)
+)

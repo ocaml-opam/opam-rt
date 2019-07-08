@@ -46,7 +46,7 @@ let set map =
 
 exception Found of file_attribute * filename
 
-let find_binding fn map =
+let _find_binding fn map =
   try
     A.Map.iter (fun a f -> if fn a f then raise (Found (a,f))) map;
     raise Not_found
@@ -88,7 +88,7 @@ let check_attributes a1 a2 =
   | [] -> ()
   | l  -> sync_errors l
 
-let check_dirs ?filter (n1, d1) (n2, d2) =
+let _check_dirs ?filter (n1, d1) (n2, d2) =
   let a1 = attributes ?filter d1 in
   let a2 = attributes ?filter d2 in
   check_attributes (n1, a1) (n2, a2)
@@ -100,7 +100,7 @@ let installed root =
   in
   st.sel_installed
 
-let package_of_filename file =
+let _package_of_filename file =
   let rec aux dirname basename =
     match OpamPackage.of_string_opt (OpamFilename.Base.to_string basename) with
     | None ->
@@ -142,7 +142,7 @@ let packages repo root =
     OpamPackage.Map.filter (fun nv _ -> OpamPackage.Set.mem nv installed)
       (OPAM.repo_opams repo)
   in
-  let diff = OpamPackage.Map.merge (fun nv a b -> match a,b with
+  let diff = OpamPackage.Map.merge (fun _nv a b -> match a,b with
       | Some o1, Some o2 when OpamFile.OPAM.effectively_equal o1 o2 -> None
       | x -> Some x)
       installed_opams repo_opams
@@ -170,8 +170,7 @@ let contents opam_root nv opam_file =
     let bins =
       OpamPath.Switch.Default.bin opam_root OPAM.default_switch
     in
-    A.Map.union
-      (fun x y -> failwith "union")
+    A.Map.union (fun _ _ -> failwith "union")
       (attributes libs)
       (attributes bins)
   in
@@ -198,6 +197,6 @@ let contents opam_root nv opam_file =
       | Some (_, d) ->
         attributes OpamFilename.(Op.(Dir.of_string d  / "files"))
     in
-    A.Map.union (fun x y -> x) files base
+    A.Map.union (fun x _ -> x) files base
   in
   check_attributes ("opam", opam) ("contents", contents)

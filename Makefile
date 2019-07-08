@@ -1,5 +1,3 @@
-BUILD=ocamlbuild -use-ocamlfind -pkgs opam-client,cohttp-lwt-unix,re.str -no-links -cflags -bin-annot
-TARGETS=src/opamRTmain.native src/file_server.native
 OPAMRT=OPAMYES=1 OPAMSWITCH= ./opam-rt
 TESTDIR=/tmp/opam-rt
 KINDS = local http git
@@ -9,9 +7,9 @@ KINDS = local http git
 all: opam-rt
 
 opam-rt:
-	$(BUILD) $(TARGETS)
-	ln -f _build/src/opamRTmain.native opam-rt
-	ln -f _build/src/file_server.native file-server
+	dune build src/opamRTmain.exe src/opamRTserver.exe
+	ln -f _build/default/src/opamRTmain.exe opam-rt
+	ln -f _build/default/src/opamRTserver.exe opam-rt-server
 
 show_results = @sed -e 's/\tOK/\t[32mOK[m/' -e 's/\tFAILOK/\t[33mFAILOK[m/' -e 's/\tFAIL/\t[31mFAIL[m/' results
 

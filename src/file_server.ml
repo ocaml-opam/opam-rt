@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Cohttp
 
 let respond body =
@@ -36,7 +35,7 @@ let process root path =
 let make_server root port =
   Printf.printf "Starting the filer-server on port %d.\nRoot directory is %s\n%!"
     port root;
-  let callback conn_id req body =
+  let callback _conn_id req _body =
     let path = Uri.path (Request.uri req) in
     Printf.printf "Request received: PATH=%s\n%!" path;
     let path = Re.(split (compile (rep1 (char '/')))) path in

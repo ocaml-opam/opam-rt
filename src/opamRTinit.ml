@@ -17,8 +17,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open OpamTypes
-
 module Git = OpamRTgit
 module OPAM = OpamRTopam
 module Packages = OpamRTpackages
