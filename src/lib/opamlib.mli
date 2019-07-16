@@ -17,6 +17,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+
+(** Functions calling opam using opam libraries or unsing CLI *)
+
 open OpamTypes
 
 val default_switch: switch

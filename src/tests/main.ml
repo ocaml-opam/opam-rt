@@ -78,7 +78,7 @@ let term_info title ~doc ~man =
 
 let test_case =
   let doc = Arg.info ~docv:"TEST" ~doc:"Name of the test to run." [] in
-  let case = Arg.enum OpamRT.tests in
+  let case = Arg.enum Tests.tests in
   Arg.(required & pos 1 (some case) None & doc)
 
 let seed_flag =
@@ -88,7 +88,7 @@ let seed_flag =
   Arg.(value & opt int 1664 & doc)
 
 let set_seed seed =
-  OpamRT.set_seed seed
+  Tests.set_seed seed
 
 let data_dir =
   let doc =
@@ -97,7 +97,7 @@ let data_dir =
   Arg.(value & opt dir "data" & info ~doc ["--data"])
 
 let apply_data_dir data_dir =
-  OpamRT.set_datadir (OpamFilename.Dir.of_string data_dir)
+  Tests.set_datadir (OpamFilename.Dir.of_string data_dir)
 
 let mk_opt ?section ?vopt flags value doc kind default =
   let doc = Arg.info ?docs:section ~docv:value ~doc flags in
@@ -139,19 +139,19 @@ let init =
   let init seed data kind path test =
     set_seed seed;
     apply_data_dir data;
-    let module Test = (val test: OpamRT.TEST) in
-    try Test.init kind path with OpamRT.Not_available -> ()
+    let module Test = (val test: Tests.TEST) in
+    try Test.init kind path with Tests.Not_available -> ()
   in
   Term.(pure init $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
 
 let run_test test kind path =
-  let module Test = (val test: OpamRT.TEST) in
+  let module Test = (val test: Tests.TEST) in
   let result =
     try Test.run kind path; `Ok with
     | Sys.Break -> prerr_endline "[interrupted]"; `No_result
-    | OpamRT.Not_available -> `Skipped
-    | OpamRT.Allowed_failure -> `Allowed_fail
+    | Tests.Not_available -> `Skipped
+    | Tests.Allowed_failure -> `Allowed_fail
     | OpamStd.Sys.Exit 0 -> `Ok
     | _ -> `Failed
   in
@@ -228,14 +228,14 @@ let test =
   let test seed data kind path test =
     apply_data_dir data;
     set_seed seed;
-    let module Test = (val test: OpamRT.TEST) in
+    let module Test = (val test: Tests.TEST) in
     if
       OpamFilename.exists_dir path
       && OpamConsole.confirm "Do you want to remove %s ?"
         (OpamFilename.Dir.to_string path)
     then
       OpamFilename.rmdir path;
-    (try Test.init kind path with OpamRT.Not_available -> ());
+    (try Test.init kind path with Tests.Not_available -> ());
     run_test test kind path
   in
   Term.(pure test $seed_flag $data_dir $repo_kind_flag $path $test_case),
@@ -251,7 +251,7 @@ let list =
         standard output";
   ] in
   let list () =
-    print_endline (String.concat " " (List.map fst OpamRT.tests))
+    print_endline (String.concat " " (List.map fst Tests.tests))
   in
   Term.(pure list $ pure ()),
   term_info "list" ~doc ~man

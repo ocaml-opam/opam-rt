@@ -19,16 +19,13 @@
 
 open OpamTypes
 
-val set_seed: int -> unit
-val set_datadir: dirname -> unit
+val shuffle: 'a list -> 'a list
 
-exception Not_available
-exception Allowed_failure
+val package:
+  string -> int -> [> `git | `rsync ] option -> dirname -> ?gener_archive:bool
+  -> int ->Packages.t
 
-module type TEST = sig
-  val name: string
-  val init: OpamUrl.backend option -> dirname -> unit
-  val run: OpamUrl.backend option -> dirname -> unit
-end
+val create_repo_with_history: dirname -> dirname -> unit
 
-val tests: (string * (module TEST)) list
+val create_simple_repo:
+  dirname -> dirname -> [> `git | `rsync ] option -> unit

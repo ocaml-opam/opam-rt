@@ -19,8 +19,6 @@
 
 open OpamTypes
 
-module Git = OpamRTgit
-
 let log = OpamConsole.log "PACKAGES"
 
 let random_string n =

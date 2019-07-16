@@ -23,13 +23,6 @@ open OpamTypes
 exception Not_available
 exception Allowed_failure
 
-module Git = OpamRTgit
-module OPAM = OpamRTopam
-module Packages = OpamRTpackages
-module Check = OpamRTcheck
-
-let exit = OpamStd.Sys.exit_because
-
 let log fmt =
   OpamConsole.log "RT" fmt
 
@@ -41,7 +34,7 @@ let error e =
     (Printexc.to_string e)
     (OpamConsole.colorise `red "[ERROR]")
     (String.concat " " (Array.to_list Sys.argv));
-  exit `False
+  OpamStd.Sys.exit_because `False
 
 let newline () =
   OpamConsole.msg "\n"
@@ -145,7 +138,7 @@ let read_installed path =
   let opam_root = path / "opam" in
   let st =
     OpamFile.SwitchSelections.read
-      (OpamPath.Switch.selections opam_root OPAM.default_switch)
+      (OpamPath.Switch.selections opam_root Opamlib.default_switch)
   in
   { installed = st.sel_installed;
     installed_roots = st.sel_roots; }
@@ -176,7 +169,7 @@ let check_installed path  ?(roots = []) wished_list =
      failwith "Installed packages don't match expectations")
 
 let _check_pinned path ?kind wished =
-  let packages = OPAM.pinned path in
+  let packages = Opamlib.pinned path in
   let packages =
     match kind with
     | None -> List.map List.hd packages
@@ -250,15 +243,15 @@ let init_repo_update_u kind path =
   OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
-  OpamRTinit.create_repo_with_history repo_root contents_root;
+  Init.create_repo_with_history repo_root contents_root;
   write_repo_config path repo_name (repo_url, None);
   let stop_server = start_file_server repo_root repo_url in
   try
     OpamConsole.msg
-      "Initializing an OPAM instance in %s/ ...\n"
+      "Initializing an opam instance in %s/ ...\n"
       (OpamFilename.Dir.to_string opam_root);
-    OPAM.init opam_root repo_name repo_url;
-    OPAM.install opam_root
+    Opamlib.init opam_root repo_name repo_url;
+    Opamlib.install opam_root
       ~version:(OpamPackage.Version.of_string "1")
       (OpamPackage.Name.of_string "a");
     stop_server ()
@@ -272,10 +265,10 @@ let init_dev_update_u contents_kind path =
   OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
-  OpamRTinit.create_simple_repo repo_root contents_root contents_kind;
+  Init.create_simple_repo repo_root contents_root contents_kind;
   write_repo_config path repo_name (repo_url, None);
-  OPAM.init opam_root repo_name repo_url;
-  OPAM.update opam_root
+  Opamlib.init opam_root repo_name repo_url;
+  Opamlib.update opam_root
 
 let init_pin_update_u contents_kind path =
   log "init-pin-update";
@@ -284,7 +277,7 @@ let init_pin_update_u contents_kind path =
   let pindir = config.contents_root / "a.0" in
   OpamFilename.move_dir ~src:(config.contents_root / "a.1") ~dst:pindir;
   OpamConsole.msg "Pinning a ...\n";
-  OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
+  Opamlib.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
 
 let init_pin_install_u contents_kind path =
   log "init-pin-install";
@@ -294,25 +287,25 @@ let init_pin_install_u contents_kind path =
   OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
-  OpamRTinit.create_simple_repo repo_root contents_root contents_kind;
+  Init.create_simple_repo repo_root contents_root contents_kind;
   let packages =
-    let a1 = OpamRTinit.package "a" 1 (Some `rsync) contents_root 442 in
-    let a2 = OpamRTinit.package "a" 2 (Some `rsync) contents_root 443 in
-    let b1 = OpamRTinit.package "b" 1 (Some `rsync) contents_root 444 in
-    let b2 = OpamRTinit.package "b" 2 (Some `rsync) contents_root 445 in
+    let a1 = Init.package "a" 1 (Some `rsync) contents_root 442 in
+    let a2 = Init.package "a" 2 (Some `rsync) contents_root 443 in
+    let b1 = Init.package "b" 1 (Some `rsync) contents_root 444 in
+    let b2 = Init.package "b" 2 (Some `rsync) contents_root 445 in
     let b1 = Packages.add_depend b1 "a" ~formula:(Atom (`Eq, FString "1")) in
     let b2 = Packages.add_depend b2 "a" ~formula:(Atom (`Eq, FString "2")) in
     [ a1; a2; b1; b2 ]
   in
   List.iter (Packages.add repo_root contents_root) packages;
   write_repo_config path repo_name (repo_url, None);
-  OPAM.init opam_root repo_name repo_url;
-  OPAM.update opam_root;
+  Opamlib.init opam_root repo_name repo_url;
+  Opamlib.update opam_root;
   let config = read_config path in
   let pindir = config.contents_root / "a.pinned" in
   OpamFilename.copy_dir ~src:(config.contents_root / "a.1") ~dst:pindir;
   OpamConsole.msg "Pinning a ...\n";
-  OPAM.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
+  Opamlib.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
 
 let init_reinstall_u contents_kind path =
   log "init-pin-install";
@@ -322,30 +315,30 @@ let init_reinstall_u contents_kind path =
   OpamConsole.msg
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
-  OpamRTinit.create_simple_repo repo_root contents_root contents_kind;
+  Init.create_simple_repo repo_root contents_root contents_kind;
   let packages =
-    let a = OpamRTinit.package "a" 1 (Some `rsync) contents_root 450 in
+    let a = Init.package "a" 1 (Some `rsync) contents_root 450 in
     let b =
       Packages.add_depend_with_runtime_checks opam_root
-        (OpamRTinit.package "b" 1 (Some `rsync) contents_root 451)
+        (Init.package "b" 1 (Some `rsync) contents_root 451)
         "a"
     in
     let c =
       Packages.add_depend_with_runtime_checks opam_root
-        (OpamRTinit.package "c" 1 (Some `rsync) contents_root 452)
+        (Init.package "c" 1 (Some `rsync) contents_root 452)
         "b"
     in
     let d =
       Packages.add_depend_with_runtime_checks opam_root
-        (OpamRTinit.package "d" 1 (Some `rsync) contents_root 453)
+        (Init.package "d" 1 (Some `rsync) contents_root 453)
         "c"
     in
     [ a; b; c; d ]
   in
   List.iter (Packages.add repo_root contents_root) packages;
   write_repo_config path repo_name (repo_url, None);
-  OPAM.init opam_root repo_name repo_url;
-  OPAM.update opam_root
+  Opamlib.init opam_root repo_name repo_url;
+  Opamlib.update opam_root
 
 (* TEST RUNS *)
 
@@ -364,10 +357,10 @@ let test_repo_update_u path =
       Git.checkout repo_root commit;
       Git.branch repo_root;
       update_server_index repo_root repo_url;
-      OPAM.update opam_root;
-      OPAM.upgrade opam_root [];
+      Opamlib.update opam_root;
+      Opamlib.upgrade opam_root [];
       Check.packages repo_root opam_root;
-    ) (OpamRTinit.shuffle commits);
+    ) (Init.shuffle commits);
   stop_server ()
 
 (* Basic dev package update test: we install the two packages and
@@ -377,11 +370,11 @@ let test_dev_update_u path =
   let { repo_root; opam_root; _ } =
     read_config path
   in
-  let opams = OPAM.repo_opams repo_root in
+  let opams = Opamlib.repo_opams repo_root in
   let opams =
     OpamPackage.Map.union (fun _ x -> x) opams @@
-    OPAM.repo_opams
-      (OpamPath.Switch.Overlay.dir opam_root OPAM.default_switch)
+    Opamlib.repo_opams
+      (OpamPath.Switch.Overlay.dir opam_root Opamlib.default_switch)
   in
   let packages =
     OpamPackage.Map.fold (fun nv opam acc ->
@@ -391,7 +384,7 @@ let test_dev_update_u path =
         | Some u ->
           match OpamUrl.local_dir (OpamFile.URL.url u) with
           | Some dir ->
-            (nv, (dir, OpamRTinit.shuffle (Git.commits dir))) :: acc
+            (nv, (dir, Init.shuffle (Git.commits dir))) :: acc
           | None ->
             acc
       ) opams []
@@ -400,8 +393,8 @@ let test_dev_update_u path =
   (* install the packages *)
   List.iter (fun (nv, _) ->
       OpamConsole.msg "Installing %s.\n" (OpamPackage.to_string nv);
-      OPAM.remove opam_root (OpamPackage.name nv);
-      OPAM.install opam_root (OpamPackage.name nv);
+      Opamlib.remove opam_root (OpamPackage.name nv);
+      Opamlib.install opam_root (OpamPackage.name nv);
     ) packages;
 
   (* update and check *)
@@ -412,8 +405,8 @@ let test_dev_update_u path =
              Printf.sprintf "%s %s" (OpamPackage.to_string nv) commit);
           Git.checkout dir commit;
           Git.branch dir;
-          OPAM.update opam_root;
-          OPAM.upgrade opam_root [];
+          Opamlib.update opam_root;
+          Opamlib.upgrade opam_root [];
           Check.contents opam_root nv (OpamPackage.Map.find nv opams);
         ) commits
     ) packages
@@ -433,7 +426,7 @@ let test_pin_install_u path =
   in
   let (-) = OpamPackage.create in
   let overlay name =
-    OpamPath.Switch.Overlay.opam opam_root OPAM.default_switch name
+    OpamPath.Switch.Overlay.opam opam_root Opamlib.default_switch name
   in
   let map_overlay f pkg =
     let o = overlay pkg in
@@ -441,43 +434,43 @@ let test_pin_install_u path =
   in
   let step = step () in
   step "Install b (version 2)";
-  OPAM.install opam_root b;
+  Opamlib.install opam_root b;
   check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
   step "Attempt to install b.1 (should fail because a is pinned to 2)";
-  should_fail (OPAM.install_code opam_root b ~version:(v 1)) `No_solution;
+  should_fail (Opamlib.install_code opam_root b ~version:(v 1)) `No_solution;
   check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
   step "Cleanup";
-  OPAM.remove opam_root ~auto:true b;
+  Opamlib.remove opam_root ~auto:true b;
   check_installed path [];
   step "Change pinned version of a to 1";
   map_overlay (OpamFile.OPAM.with_version (v 1)) a;
   step "Attempt to install b 2";
-  should_fail (OPAM.install_code opam_root b ~version:(v 2)) `No_solution;
+  should_fail (Opamlib.install_code opam_root b ~version:(v 2)) `No_solution;
   check_installed path [];
   step "Install b, should get version 1";
-  OPAM.install opam_root b;
+  Opamlib.install opam_root b;
   check_installed path ~roots:[ b-v 1 ] [ b-v 1; a-v 1 ];
   step "Change pinned version of installed package a back to 2";
   map_overlay (OpamFile.OPAM.with_version (v 2)) a;
-  OPAM.upgrade opam_root [];
+  Opamlib.upgrade opam_root [];
   check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-v 2 ];
   (* -- *)
   step "Remove all, unpin a, add a new version of a and update";
-  OPAM.remove opam_root a;
-  OPAM.unpin opam_root a;
-  let a3 = OpamRTinit.package "a" 3 (Some `rsync) contents_root 452 in
+  Opamlib.remove opam_root a;
+  Opamlib.unpin opam_root a;
+  let a3 = Init.package "a" 3 (Some `rsync) contents_root 452 in
   Packages.add repo_root contents_root a3;
-  OPAM.update opam_root;
+  Opamlib.update opam_root;
   check_installed path [];
   step "Pin a to version 2 and install";
-  OPAM.vpin opam_root a (v 2);
-  OPAM.install opam_root a;
+  Opamlib.vpin opam_root a (v 2);
+  Opamlib.install opam_root a;
   check_installed path ~roots:[a-v 2] [a-v 2];
   step "Unpin a";
-  OPAM.unpin opam_root a;
+  Opamlib.unpin opam_root a;
   check_installed path ~roots:[a-v 2] [a-v 2];
   step "Upgrade";
-  OPAM.upgrade opam_root [];
+  Opamlib.upgrade opam_root [];
   check_installed path ~roots:[a-v 3] [a-v 3]
 
 let test_reinstall_u path =
@@ -491,73 +484,73 @@ let test_reinstall_u path =
   let pkg name = name - v 1 in
   let step = step () in
   step "Install d";
-  OPAM.install opam_root d;
+  Opamlib.install opam_root d;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Reinstall b";
-  OPAM.reinstall opam_root b;
+  Opamlib.reinstall opam_root b;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Install d";
-  OPAM.install opam_root d;
+  Opamlib.install opam_root d;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Remove b";
-  OPAM.remove opam_root b;
+  Opamlib.remove opam_root b;
   check_installed path ~roots:[] (List.map pkg [a]);
   step "Install d";
-  OPAM.install opam_root d;
+  Opamlib.install opam_root d;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Remove b from upstream and update";
   OpamFilename.rmdir (path / "repo" / "packages" / "b.1");
-  OPAM.update opam_root;
+  Opamlib.update opam_root;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Upgrade";
-  OPAM.upgrade opam_root [];
+  Opamlib.upgrade opam_root [];
   check_installed path ~roots:[] (List.map pkg [a]);
   step "Attempt to reinstall d";
-  should_fail (OPAM.install_code opam_root d) `No_solution;
+  should_fail (Opamlib.install_code opam_root d) `No_solution;
   step "Revert to the state with all packages installed and b removed upstream";
   let b1 =
     Packages.add_depend_with_runtime_checks opam_root
-      (OpamRTinit.package "b" 1 (Some `rsync) contents_root 451)
+      (Init.package "b" 1 (Some `rsync) contents_root 451)
       "a"
   in
   Packages.add repo_root contents_root b1;
-  OPAM.update opam_root;
-  OPAM.install opam_root d;
+  Opamlib.update opam_root;
+  Opamlib.install opam_root d;
   OpamFilename.rmdir (path / "repo" / "packages" / "b.1");
-  OPAM.update opam_root;
+  Opamlib.update opam_root;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Reinstall c";
-  OPAM.reinstall opam_root c;
+  Opamlib.reinstall opam_root c;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Add a new version of c, then upgrade";
   let c2 =
     Packages.add_depend_with_runtime_checks opam_root
-      (OpamRTinit.package "c" 2 (Some `rsync) contents_root 552)
+      (Init.package "c" 2 (Some `rsync) contents_root 552)
       "b"
   in
   Packages.add repo_root contents_root c2;
-  OPAM.update opam_root;
-  OPAM.upgrade opam_root [c];
+  Opamlib.update opam_root;
+  Opamlib.upgrade opam_root [c];
   check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
   step "Try to reinstall b (should work using the cache)";
-  OPAM.reinstall opam_root b;
+  Opamlib.reinstall opam_root b;
   check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
   step "Try to reinstall a";
-  OPAM.reinstall opam_root a;
+  Opamlib.reinstall opam_root a;
   check_installed path ~roots:[pkg d] [a-v 1; b-v 1; c-v 2; d-v 1];
   step "Add a new version of a and upgrade";
-  let a2 = OpamRTinit.package "a" 2 (Some `rsync) contents_root 452 in
+  let a2 = Init.package "a" 2 (Some `rsync) contents_root 452 in
   Packages.add repo_root contents_root a2;
-  OPAM.update opam_root;
-  OPAM.upgrade opam_root [];
+  Opamlib.update opam_root;
+  Opamlib.upgrade opam_root [];
   check_installed path ~roots:[] [a-v 2];
   step "Remove that new version of a and upgrade";
   OpamFilename.rmdir (path / "repo" / "packages" / "prefix-a" / "a.2");
-  OPAM.update opam_root;
-  OPAM.upgrade opam_root [];
+  Opamlib.update opam_root;
+  Opamlib.upgrade opam_root [];
   check_installed path ~roots:[] [a-v 1];
   step "Upgrade again";
-  OPAM.upgrade opam_root [];
+  Opamlib.upgrade opam_root [];
   check_installed path ~roots:[] [a-v 1];
   ()
 
@@ -611,12 +604,12 @@ module Dep_cycle = struct
     OpamConsole.msg
       "Creating a new repository in %s/ ...\n"
       (OpamFilename.Dir.to_string repo_root);
-    OpamRTinit.create_simple_repo repo_root contents_root kind;
+    Init.create_simple_repo repo_root contents_root kind;
     let packages =
-      let a1 = OpamRTinit.package "a" 1 (Some `rsync) contents_root 450 in
-      let a2 = OpamRTinit.package "a" 2 (Some `rsync) contents_root 451 in
-      let b1 = OpamRTinit.package "b" 1 (Some `rsync) contents_root 452 in
-      let b2 = OpamRTinit.package "b" 2 (Some `rsync) contents_root 453 in
+      let a1 = Init.package "a" 1 (Some `rsync) contents_root 450 in
+      let a2 = Init.package "a" 2 (Some `rsync) contents_root 451 in
+      let b1 = Init.package "b" 1 (Some `rsync) contents_root 452 in
+      let b2 = Init.package "b" 2 (Some `rsync) contents_root 453 in
       let formula =
         Atom (`Eq,
               FIdent (OpamFilter.ident_of_var
@@ -632,8 +625,8 @@ module Dep_cycle = struct
     in
     List.iter (Packages.add repo_root contents_root) packages;
     write_repo_config path repo_name (repo_url, None);
-    OPAM.init opam_root repo_name repo_url;
-    OPAM.update opam_root
+    Opamlib.init opam_root repo_name repo_url;
+    Opamlib.update opam_root
 
   let init kind = check_and_run kind (init_u kind)
 
@@ -645,20 +638,20 @@ module Dep_cycle = struct
     let (-) = OpamPackage.create in
     let step = step () in
     step "Install a1";
-    OPAM.install opam_root a ~version:(v 1);
+    Opamlib.install opam_root a ~version:(v 1);
     check_installed path [a-v 1;b-v 1];
     step "Upgrade";
-    OPAM.upgrade opam_root [];
+    Opamlib.upgrade opam_root [];
     check_installed path [a-v 2;b-v 2];
     step "Downgrade a";
-    OPAM.install opam_root a ~version:(v 1);
+    Opamlib.install opam_root a ~version:(v 1);
     check_installed path [a-v 1;b-v 1];
     step "Upgrade";
-    OPAM.upgrade opam_root [];
+    Opamlib.upgrade opam_root [];
     check_installed path [a-v 2;b-v 2];
     step "Remove b then downgrade a";
-    OPAM.remove opam_root b;
-    OPAM.install opam_root a ~version:(v 1);
+    Opamlib.remove opam_root b;
+    Opamlib.install opam_root a ~version:(v 1);
     check_installed path [a-v 1;b-v 1]
 
   let run kind = check_and_run kind (run_u kind)
@@ -679,7 +672,7 @@ module Pin_advanced = struct
       let files = List.sort compare files in
       let dir =
         OpamFilename.Dir.of_string
-          (OPAM.var opam_root (OpamPackage.Name.to_string pkg ^ ":share"))
+          (Opamlib.var opam_root (OpamPackage.Name.to_string pkg ^ ":share"))
       in
       let found_files =
         List.sort compare
@@ -717,24 +710,24 @@ module Pin_advanced = struct
     in
     let tests pin_update pin_target pin_kind pin_version =
       step "Pin (uninstalled) package a";
-      OPAM.pin_kind opam_root ~action:false ~kind:pin_kind a (pin_target a);
+      Opamlib.pin_kind opam_root ~action:false ~kind:pin_kind a (pin_target a);
       step "Install a";
-      OPAM.install opam_root a;
+      Opamlib.install opam_root a;
       check_installed path [a-pin_version];
       check_pkg_shares a ["pinned_5"];
       step "Unpin a";
-      OPAM.unpin opam_root ~action:false a;
+      Opamlib.unpin opam_root ~action:false a;
       check_installed path [a-pin_version];
       step "Reinstall a (should succeed using the cache)";
-      OPAM.reinstall opam_root a;
+      Opamlib.reinstall opam_root a;
       check_installed path [a-pin_version];
       check_pkg_shares a ["pinned_5"];
       step "Upgrade a";
-      OPAM.upgrade opam_root [a];
+      Opamlib.upgrade opam_root [a];
       check_installed path [a-v 1];
       check_pkg_shares a [];
       step "Pin (installed) package a";
-      OPAM.pin_kind opam_root ~action:true ~kind:pin_kind a (pin_target a);
+      Opamlib.pin_kind opam_root ~action:true ~kind:pin_kind a (pin_target a);
       check_installed path [a-pin_version];
       check_pkg_shares a ["pinned_5"];
       step "Change in-source opam and update";
@@ -743,12 +736,12 @@ module Pin_advanced = struct
           let opdir = OpamFilename.Dir.of_string "opam" in
           OpamFilename.mkdir opdir;
           write_opam (a-v 5) ["repin_5"] (opdir // "opam"));
-      OPAM.upgrade opam_root [a];
+      Opamlib.upgrade opam_root [a];
       check_installed path [a-pin_version];
       check_pkg_shares a ["repin_5"];
       step "Pin-edit";
       step "Pin-edit AND change in-source opam";
-      OPAM.pin_edit opam_root ~action:false a
+      Opamlib.pin_edit opam_root ~action:false a
         (write_opam
            ~url:(OpamFile.URL.create (OpamUrl.of_string (pin_target a)))
            (a-v 5) ["pin-edit_bis"]);
@@ -756,11 +749,11 @@ module Pin_advanced = struct
           write_opam (a-v 5) ["repin_5bis"]
             (OpamFilename.Dir.of_string "opam" // "opam"));
       (* We are on --yes so the source version should win *)
-      OPAM.upgrade opam_root [a];
+      Opamlib.upgrade opam_root [a];
       check_installed path [a-pin_version];
       check_pkg_shares a ["repin_5bis"];
       step "Pin-edit with version change";
-      OPAM.pin_edit opam_root ~action:true a
+      Opamlib.pin_edit opam_root ~action:true a
         (write_opam
            ~url:(OpamFile.URL.create (OpamUrl.of_string (pin_target a)))
            (a-v 100) ["pin-edit-v100"]);
@@ -770,15 +763,15 @@ module Pin_advanced = struct
       pin_update z (fun () ->
           OpamFilename.write (OpamFilename.of_string "contents") "contents";
           write_opam (z-v 2) ["pkg-b";"no-repo"] (OpamFilename.of_string "opam"));
-      OPAM.pin_kind opam_root ~action:true ~kind:pin_kind z (pin_target z);
+      Opamlib.pin_kind opam_root ~action:true ~kind:pin_kind z (pin_target z);
       check_installed path [a-v 100; z-v 2];
       check_pkg_shares z ["pkg-b";"no-repo"];
       step "Unpin all";
-      OPAM.unpin opam_root ~action:true a;
-      OPAM.unpin opam_root ~action:true z;
+      Opamlib.unpin opam_root ~action:true a;
+      Opamlib.unpin opam_root ~action:true z;
       check_installed path [a-v 1];
       step "Cleanup";
-      OPAM.remove opam_root a
+      Opamlib.remove opam_root a
     in
 
     OpamConsole.header_msg "Local pin";
@@ -859,21 +852,21 @@ module Pin_advanced = struct
     ] in
     let check_install4 ?pin () = check_install ?pin "pinned_4" pins pkgs in
     step "Pin and install recursively";
-    OPAM.pin_dir opam_root ~recs top_dir;
-    List.iter (fun a -> OPAM.install opam_root a) pkgs_n;
+    Opamlib.pin_dir opam_root ~recs top_dir;
+    List.iter (fun a -> Opamlib.install opam_root a) pkgs_n;
     check_install4 ~pin:true ();
     step "Unpin recursively";
-    OPAM.unpin_dir opam_root ~recs top_dir;
-    List.iter (fun a -> OPAM.reinstall opam_root a) pkgs_n;
+    Opamlib.unpin_dir opam_root ~recs top_dir;
+    List.iter (fun a -> Opamlib.reinstall opam_root a) pkgs_n;
     check_install4 ();
     step "Remove recursively";
-    OPAM.pin_dir opam_root ~recs top_dir;
-    OPAM.remove_dir ~recs opam_root top_dir;
+    Opamlib.pin_dir opam_root ~recs top_dir;
+    Opamlib.remove_dir ~recs opam_root top_dir;
     check_installed path [];
 
     step "Pin with subpath";
-    OPAM.install_dir opam_root top_dir;
-    List.iter (fun a -> OPAM.install_dir opam_root ~subpath:a top_dir) pkgs_path;
+    Opamlib.install_dir opam_root top_dir;
+    List.iter (fun a -> Opamlib.install_dir opam_root ~subpath:a top_dir) pkgs_path;
     check_install4 ~pin:true ();
 
     step "Update pinned opam";
@@ -889,13 +882,13 @@ module Pin_advanced = struct
         (List.map (fun (k,l) -> k, List.map to6 l) pins)
         (List.map to6 pkgs)
     in
-    OPAM.update opam_root;
-    OPAM.upgrade opam_root pkgs_n;
+    Opamlib.update opam_root;
+    Opamlib.upgrade opam_root pkgs_n;
     check_install6 ~pin:true ();
 
     step "Remove with subpath";
-    OPAM.remove_dir opam_root top_dir;
-    List.iter (fun a -> OPAM.remove_dir opam_root ~subpath:a top_dir) pkgs_path;
+    Opamlib.remove_dir opam_root top_dir;
+    List.iter (fun a -> Opamlib.remove_dir opam_root ~subpath:a top_dir) pkgs_path;
     check_installed path []
 *)
   let run kind = check_and_run kind run_u
@@ -935,17 +928,17 @@ module Big_upgrade = struct
     Git.commit repo_root "Init repo from stored data";
     Git.branch repo_root;
     OpamConsole.msg
-      "Initializing an OPAM instance in %s/ ...\n"
+      "Initializing an opam instance in %s/ ...\n"
       (OpamFilename.Dir.to_string opam_root);
-    OPAM.init opam_root repo_name repo_url;
-    OPAM.import opam_root ~fake:true (data "init.export");
+    Opamlib.init opam_root repo_name repo_url;
+    Opamlib.import opam_root ~fake:true (data "init.export");
     stop_server ()
 
   let check_export opam_root reference =
     let exportfile =
       OpamFilename.of_string (OpamSystem.temp_file "opam-rt-export")
     in
-    OPAM.export opam_root exportfile;
+    Opamlib.export opam_root exportfile;
     let ret =
       OpamProcess.run @@
       OpamProcess.command "diff"
@@ -965,10 +958,10 @@ module Big_upgrade = struct
     let step = step () in
     let stop_server = start_file_server repo_root repo_url in
     step "update";
-    OPAM.update opam_root;
+    Opamlib.update opam_root;
     check_export opam_root (data "init.export");
     step "upgrade";
-    OPAM.upgrade opam_root ~fake:true [];
+    Opamlib.upgrade opam_root ~fake:true [];
     check_export opam_root (data "expected.export");
     stop_server ()
 end

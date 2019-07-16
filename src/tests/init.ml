@@ -17,10 +17,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Git = OpamRTgit
-module OPAM = OpamRTopam
-module Packages = OpamRTpackages
-
 let shuffle l =
   let a = Array.of_list l in
   let permute i j = let x = a.(i) in a.(i) <- a.(j); a.(j) <- x in

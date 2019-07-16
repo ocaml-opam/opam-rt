@@ -1,0 +1,5 @@
+(executable
+  (name main)
+  (public_name opam-rt)
+  (libraries opam_rt_lib cmdliner opam-client re.str)
+)

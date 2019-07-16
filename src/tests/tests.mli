@@ -17,16 +17,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+
+(* Set of tests *)
 open OpamTypes
 
+val set_seed: int -> unit
+val set_datadir: dirname -> unit
 
-val shuffle: 'a list -> 'a list
+exception Not_available
+exception Allowed_failure
 
-val package:
-  string -> int -> [> `git | `rsync ] option -> dirname -> ?gener_archive:bool
-  -> int -> OpamRTpackages.t
+module type TEST = sig
+  val name: string
+  val init: OpamUrl.backend option -> dirname -> unit
+  val run: OpamUrl.backend option -> dirname -> unit
+end
 
-val create_repo_with_history: dirname -> dirname -> unit
-
-val create_simple_repo:
-  dirname -> dirname -> [> `git | `rsync ] option -> unit
+(** Defined tests :
+    * repo_update
+    * dev_update
+    * pin_update
+    * pin_install
+    * reinstall
+    * pin_advanced
+    * dep_cycle
+    * big_upgrade
+*)
+val tests: (string * (module TEST)) list

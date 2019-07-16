@@ -17,6 +17,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Functions to create and set up packages *)
 open OpamTypes
 
 type t = {

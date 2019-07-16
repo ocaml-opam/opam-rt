@@ -19,9 +19,7 @@
 
 open OpamTypes
 
-module OPAM = OpamRTopam
-
-module A = OpamFilename.Attribute
+module Attr = OpamFilename.Attribute
 
 type error = {
   source: string;
@@ -36,19 +34,19 @@ let sync_errors errors =
     (String.concat "\n"
        (List.map (fun { source; attr; file } ->
             Printf.sprintf "%s: %s\n  %s: %S\n"
-              source (A.to_string attr)
+              source (Attr.to_string attr)
               (OpamFilename.to_string file) (OpamFilename.read file)
           ) errors));
   raise (Sync_errors errors)
 
 let set map =
-  A.Map.fold (fun a _ set -> A.Set.add a set) map A.Set.empty
+  Attr.Map.fold (fun a _ set -> Attr.Set.add a set) map Attr.Set.empty
 
 exception Found of file_attribute * filename
 
 let _find_binding fn map =
   try
-    A.Map.iter (fun a f -> if fn a f then raise (Found (a,f))) map;
+    Attr.Map.iter (fun a f -> if fn a f then raise (Found (a,f))) map;
     raise Not_found
   with Found (a,f) -> (a,f)
 
@@ -64,21 +62,21 @@ let attributes ?filter dir =
       | None     -> attrs
       | Some dir ->
         let attr = OpamFilename.to_attribute dir file in
-        A.Map.add attr file attrs
-    ) A.Map.empty files
+        Attr.Map.add attr file attrs
+    ) Attr.Map.empty files
 
 let sym_diff (name1, a1) (name2, a2) =
   let s1 = set a1 in
   let s2 = set a2 in
-  let diff1 = A.Set.diff s1 s2 in
-  let diff2 = A.Set.diff s2 s1 in
-  let diff = A.Set.union diff1 diff2 in
-  A.Set.fold (fun a errors ->
+  let diff1 = Attr.Set.diff s1 s2 in
+  let diff2 = Attr.Set.diff s2 s1 in
+  let diff = Attr.Set.union diff1 diff2 in
+  Attr.Set.fold (fun a errors ->
       let source, attr, file =
-        if A.Map.mem a a1 then
-          (name1, a, A.Map.find a a1)
+        if Attr.Map.mem a a1 then
+          (name1, a, Attr.Map.find a a1)
         else
-          (name2, a, A.Map.find a a2)
+          (name2, a, Attr.Map.find a a2)
       in
       { source; attr; file } :: errors
     ) diff []
@@ -96,7 +94,7 @@ let _check_dirs ?filter (n1, d1) (n2, d2) =
 let installed root =
   let st =
     OpamFile.SwitchSelections.read
-      (OpamPath.Switch.selections root OPAM.default_switch)
+      (OpamPath.Switch.selections root Opamlib.default_switch)
   in
   st.sel_installed
 
@@ -115,7 +113,7 @@ let check_invariants root =
   let installed = installed root in
   OpamPackage.Set.iter (fun nv ->
       let file =
-        OpamPath.Switch.installed_opam root OPAM.default_switch nv
+        OpamPath.Switch.installed_opam root Opamlib.default_switch nv
       in
       if not (OpamFile.exists file) then
         OpamConsole.error_and_exit `False
@@ -134,13 +132,13 @@ let packages repo root =
     OpamPackage.Set.fold (fun nv acc ->
         OpamPackage.Map.add nv
           (OpamFile.OPAM.read
-             (OpamPath.Switch.installed_opam root OPAM.default_switch nv))
+             (OpamPath.Switch.installed_opam root Opamlib.default_switch nv))
           acc)
       installed OpamPackage.Map.empty
   in
   let repo_opams =
     OpamPackage.Map.filter (fun nv _ -> OpamPackage.Set.mem nv installed)
-      (OPAM.repo_opams repo)
+      (Opamlib.repo_opams repo)
   in
   let diff = OpamPackage.Map.merge (fun _nv a b -> match a,b with
       | Some o1, Some o2 when OpamFile.OPAM.effectively_equal o1 o2 -> None
@@ -165,19 +163,19 @@ let contents opam_root nv opam_file =
   let opam =
     let name = OpamPackage.name nv in
     let libs =
-      OpamPath.Switch.Default.lib opam_root OPAM.default_switch name
+      OpamPath.Switch.Default.lib opam_root Opamlib.default_switch name
     in
     let bins =
-      OpamPath.Switch.Default.bin opam_root OPAM.default_switch
+      OpamPath.Switch.Default.bin opam_root Opamlib.default_switch
     in
-    A.Map.union (fun _ _ -> failwith "union")
+    Attr.Map.union (fun _ _ -> failwith "union")
       (attributes libs)
       (attributes bins)
   in
   let contents =
     let base =
       match OpamFile.OPAM.url opam_file with
-      | None   -> A.Map.empty
+      | None   -> Attr.Map.empty
       | Some u ->
         match OpamUrl.local_dir (OpamFile.URL.url u) with
         | Some package_root ->
@@ -189,14 +187,14 @@ let contents opam_root nv opam_file =
             else Some (OpamFilename.dirname file)
           in
           attributes ~filter package_root
-        | None -> A.Map.empty
+        | None -> Attr.Map.empty
     in
     let files =
       match OpamFile.OPAM.metadata_dir opam_file with
-      | None   -> A.Map.empty
+      | None   -> Attr.Map.empty
       | Some (_, d) ->
         attributes OpamFilename.(Op.(Dir.of_string d  / "files"))
     in
-    A.Map.union (fun x _ -> x) files base
+    Attr.Map.union (fun x _ -> x) files base
   in
   check_attributes ("opam", opam) ("contents", contents)
