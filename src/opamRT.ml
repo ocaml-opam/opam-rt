@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 OCamlPro
+ * Copyright (c) 2013-2019 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
  *         Louis Gesbert <louis.gesbert@ocamlpro.com>
  *
@@ -352,6 +352,9 @@ let test_dev_update_u path =
         ) commits
     ) packages
 
+let should_fail rcode exit_code =
+   if rcode = OpamStd.Sys.get_exit_code exit_code then ()
+   else failwith "should fail"
 
 let test_pin_install_u path =
   log "test-pin-update %s" (OpamFilename.Dir.to_string path);
@@ -371,12 +374,7 @@ let test_pin_install_u path =
   OPAM.install opam_root b;
   check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
   step "Attempt to install b.1 (should fail because a is pinned to 2)";
-  (try
-    OPAM.install opam_root b ~version:(v 1);
-    failwith "should fail"
-   with
-     OpamSystem.Process_error e
-     when e.OpamProcess.r_code = OpamStd.Sys.get_exit_code `No_solution -> ());
+  should_fail (OPAM.install_code opam_root b ~version:(v 1)) `No_solution;
   check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
   step "Cleanup";
   OPAM.remove opam_root ~auto:true b;
@@ -384,12 +382,7 @@ let test_pin_install_u path =
   step "Change pinned version of a to 1";
   map_overlay (OpamFile.OPAM.with_version (v 1)) a;
   step "Attempt to install b 2";
-  (try
-    OPAM.install opam_root b ~version:(v 2);
-    failwith "should fail"
-   with
-     OpamSystem.Process_error e
-     when e.OpamProcess.r_code = OpamStd.Sys.get_exit_code `No_solution -> ());
+  should_fail (OPAM.install_code opam_root b ~version:(v 2)) `No_solution;
   check_installed path [];
   step "Install b, should get version 1";
   OPAM.install opam_root b;
@@ -444,19 +437,14 @@ let test_reinstall_u path =
   OPAM.install opam_root d;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Remove b from upstream and update";
-  OpamSystem.remove_dir (OpamFilename.Dir.to_string (path / "repo" / "packages" / "b.1"));
+  OpamFilename.rmdir (path / "repo" / "packages" / "b.1");
   OPAM.update opam_root;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Upgrade";
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[] (List.map pkg [a]);
   step "Attempt to reinstall d";
-  (try
-    OPAM.install opam_root d;
-    failwith "should fail"
-   with
-     OpamSystem.Process_error e
-     when e.OpamProcess.r_code =  OpamStd.Sys.get_exit_code `No_solution -> ());
+  should_fail (OPAM.install_code opam_root d) `No_solution;
   step "Revert to the state with all packages installed and b removed upstream";
   let b1 = Packages.add_depend_with_runtime_checks opam_root
       (OpamRTinit.package "b" 1 (Some `rsync) contents_root 451)
@@ -464,7 +452,7 @@ let test_reinstall_u path =
   Packages.add repo_root contents_root b1;
   OPAM.update opam_root;
   OPAM.install opam_root d;
-  OpamSystem.remove_dir (OpamFilename.Dir.to_string (path / "repo" / "packages" / "b.1"));
+  OpamFilename.rmdir (path / "repo" / "packages" / "b.1");
   OPAM.update opam_root;
   check_installed path ~roots:[pkg d] (List.map pkg [a;b;c;d]);
   step "Reinstall c";
@@ -491,7 +479,7 @@ let test_reinstall_u path =
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[] [a-v 2];
   step "Remove that new version of a and upgrade";
-  OpamSystem.remove_dir (OpamFilename.Dir.to_string (path / "repo" / "packages" / "prefix-a" / "a.2" ));
+  OpamFilename.rmdir (path / "repo" / "packages" / "prefix-a" / "a.2");
   OPAM.update opam_root;
   OPAM.upgrade opam_root [];
   check_installed path ~roots:[] [a-v 1];
@@ -612,7 +600,10 @@ module Pin_advanced : TEST = struct
     let v version = OpamPackage.Version.of_string (string_of_int version) in
     let (-) = OpamPackage.create in
     let step = let i = ref 0 in
-      fun msg -> incr i; OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg in
+      fun msg ->
+        incr i;
+        OpamConsole.msg "%s %s\n" (Color.yellow ">> step %d <<" !i) msg
+    in
     let check_pkg_shares pkg files =
       let files = List.sort compare files in
       let dir =
@@ -630,18 +621,25 @@ module Pin_advanced : TEST = struct
     in
     let write_opam nv ?url touch_files file =
       let this = OpamPackage.Name.to_string (OpamPackage.name nv) in
-      OpamFile.OPAM.create nv |>
-      OpamFile.OPAM.with_install
-        (([CString "mkdir",None; CString "-p", None; CIdent (this^":share"), None],None)::
-         List.map (fun f -> [CString "touch",None; CString ("%{"^this^":share}%/"^f), None],None)
-           touch_files) |>
+      OpamFile.OPAM.create nv
+      |> OpamFile.OPAM.with_install
+        (([CString "mkdir",None;
+           CString "-p", None;
+           CIdent (this^":share"), None],
+          None)::
+         List.map (fun f ->
+             [CString "touch",None;
+              CString ("%{"^this^":share}%/"^f), None],
+             None)
+           touch_files)
       (* OPAM is not expected to keep track of what to remove after "pin --edit",
          so remove the whole directory. *)
-      OpamFile.OPAM.with_remove
+      |> OpamFile.OPAM.with_remove
         [[CString "rm",None; CString "-rf",None;
-          CString ("%{"^this^":share}%"), None],None] |>
-      OpamFile.OPAM.with_url_opt url |>
-      OpamFile.OPAM.write (OpamFile.make file)
+          CString ("%{"^this^":share}%"), None],None]
+      |> OpamFile.OPAM.with_url_opt url
+      |> OpamRTcommon.Packages.mandatory_fields "pin"
+      |> OpamFile.OPAM.write (OpamFile.make file)
     in
     let tests pin_update pin_target pin_kind pin_version =
       step "Pin (uninstalled) package a";
@@ -760,21 +758,25 @@ module Big_upgrade : TEST = struct
     OpamConsole.msg
       "Creating a new repository in %s/ ...\n"
       (OpamFilename.Dir.to_string repo_root);
+
     OpamFilename.mkdir repo_root;
-    OpamSystem.in_dir (OpamFilename.Dir.to_string repo_root) (fun () ->
-        OpamFile.Repo.write (OpamFile.make (OpamFilename.of_string "repo"))
-          (OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ());
-        OpamSystem.command
-          ["tar"; "xzf"; OpamFilename.to_string (data "repo_packages.tar.gz")]);
+
+    OpamFile.Repo.write
+      (OpamFile.make OpamFilename.Op.(repo_root // "repo"))
+         (OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ());
+
+    OpamFilename.extract_in (data "repo_packages.tar.gz") repo_root;
+
     let stop_server = start_file_server repo_root repo_url in
     Git.init repo_root;
     let git_dir_re = Re.(compile (str "\\(.*/\\)?\\.git\\(/.*\\)?")) in
     Git.add_list repo_root
       (OpamStd.List.filter_map (fun f ->
-           if Re.(all git_dir_re f) <> [] then None
-           else Some (OpamFilename.of_string f))
-          (OpamSystem.rec_files
-             (OpamFilename.Dir.to_string repo_root)));
+           if Re.(all git_dir_re (OpamFilename.to_string f)) <> [] then
+             None
+           else
+             Some f)
+          (OpamFilename.rec_files repo_root));
     Git.commit repo_root "Init repo from stored data";
     Git.branch repo_root;
     OpamConsole.msg
@@ -785,13 +787,15 @@ module Big_upgrade : TEST = struct
     stop_server ()
 
   let check_export opam_root reference =
-    let exportfile = OpamFilename.of_string (OpamSystem.temp_file "opam-rt-export") in
+    let exportfile =
+      OpamFilename.of_string (OpamSystem.temp_file "opam-rt-export")
+    in
     OPAM.export opam_root exportfile;
     let ret =
-      OpamProcess.run
-        (OpamProcess.command "diff"
-           (List.map OpamFilename.to_string [reference; exportfile])) in
-    if ret.OpamProcess.r_code = 0 then
+      OpamProcess.run @@
+      OpamProcess.command "diff"
+        (List.map OpamFilename.to_string [reference; exportfile]) in
+    if OpamProcess.check_success_and_cleanup ret then
       (OpamConsole.msg "%s Export files matches reference\n"
          (Color.green "[OK]"))
     else

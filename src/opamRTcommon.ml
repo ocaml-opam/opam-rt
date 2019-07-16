@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 OCamlPro
+ * Copyright (c) 2013-2019 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
  *         Louis Gesbert <louis.gesbert@ocamlpro.com>
  *
@@ -18,7 +18,6 @@
 
 open OpamTypes
 open OpamTypesBase
-open OpamFilename.Op
 
 let seed_ref =
   ref 1664
@@ -53,32 +52,35 @@ end
 
 module Git = struct
 
-  let exec repo command =
-    OpamFilename.in_dir repo (fun () ->
-        OpamSystem.command command
-      )
+  let exec repo args =
+    let open OpamProcess.Job.Op in
+    OpamProcess.Job.run @@
+    OpamSystem.make_command ~dir:(OpamFilename.Dir.to_string repo)
+      "git" args @@> fun r ->
+    if not (OpamProcess.check_success_and_cleanup r) then
+      failwith (Printf.sprintf "Command failed [%d]: 'git %s'\n%s\n"
+        r.OpamProcess.r_code
+        (OpamStd.List.to_string (fun x -> x) args)
+        (OpamStd.List.to_string (fun x -> x) r.OpamProcess.r_stderr) );
+    Done r.OpamProcess.r_stdout
 
-  let return_one_line repo command =
-    OpamFilename.in_dir repo (fun () ->
-        List.hd (OpamSystem.read_command_output command)
-      )
+  let git repo args =
+    ignore @@ exec repo args
 
-  let return repo command =
-    OpamFilename.in_dir repo (fun () ->
-        (OpamSystem.read_command_output command)
-      )
+  let git_out repo args =
+    exec repo args
 
   let commit repo fmt =
     Printf.kprintf (fun msg ->
-        exec repo [ "git"; "commit"; "-a"; "-m"; msg; "--allow-empty" ]
+        git repo [ "commit"; "-a"; "-m"; msg; "--allow-empty" ]
       ) fmt
 
   let commit_file repo file fmt =
     Printf.kprintf (fun msg ->
         if OpamFilename.exists file then
           let file = OpamFilename.remove_prefix repo file in
-          exec repo [ "git"; "add"; file ];
-          exec repo [ "git"; "commit"; "-m"; msg; file; "--allow-empty" ];
+          git repo [ "add"; file ];
+          git repo [ "commit"; "-m"; msg; file; "--allow-empty" ];
         else
           OpamConsole.error_and_exit `Internal_error
             "Cannot commit %s" (OpamFilename.to_string file);
@@ -87,38 +89,39 @@ module Git = struct
   let commit_dir repo dir fmt =
     Printf.kprintf (fun msg ->
         if OpamFilename.exists_dir dir then
-          let dir =
-            OpamStd.String.remove_prefix
-              ~prefix:(OpamFilename.to_string (repo//""))
-              (OpamFilename.Dir.to_string dir) in
-          exec repo [ "git"; "add"; "--all"; dir ];
-          exec repo [ "git"; "commit"; "-m"; msg; "--allow-empty" ];
+          let dir = OpamFilename.remove_prefix_dir repo dir in
+          let dir = if dir = "" then (OpamFilename.Dir.to_string repo) else dir in
+          git repo [ "add"; "--all"; dir ];
+          git repo [ "commit"; "-m"; msg; "--allow-empty" ];
         else
           OpamConsole.error_and_exit `Internal_error "Cannot commit %s"
             (OpamFilename.Dir.to_string dir);
       ) fmt
 
   let revision repo =
-    return_one_line repo [ "git"; "rev-parse"; "HEAD" ]
+  git repo ["log"] ;
+    match git_out repo [ "rev-parse"; "HEAD" ] with
+    | s::_ -> s
+    | [] -> failwith "No empty revision"
 
   let commits repo =
-    return repo ["git"; "log"; "master"; "--pretty=format:%H"]
+    git_out repo [ "log"; "master"; "--pretty=format:%H"]
 
   let init repo =
-    exec repo ["git"; "init"]
+    git repo [ "init"]
 
   let test_tag = "test"
 
   let branch repo =
-    exec repo ["git"; "checkout"; "-B"; test_tag]
+    git repo [ "checkout"; "-B"; test_tag]
 
   let master repo =
-    exec repo ["git"; "checkout"; "master"]
+    git repo [ "checkout"; "master"]
 
   let add repo file =
     if OpamFilename.exists file then
       let file = OpamFilename.remove_prefix repo file in
-      exec repo ["git"; "add"; file]
+      git repo [ "add"; file ]
 
   let add_list repo files =
     let files = List.filter OpamFilename.exists files in
@@ -134,15 +137,15 @@ module Git = struct
       | [] -> ()
       | l ->
           let files,r = take_n l 100 in
-          exec repo ("git" :: "add" :: files);
+          git repo ("add" :: files);
           loop r
     in
     loop files
 
   let checkout repo hash =
-    exec repo ["git"; "checkout"; hash];
-    exec repo ["git"; "reset"; "--hard"];
-    exec repo ["git"; "clean"; "-fdx"]
+    git repo [ "checkout"; hash ];
+    git repo [ "reset"; "--hard" ];
+    git repo [ "clean"; "-fdx" ]
 
   let msg repo commit package fmt =
     Printf.kprintf (fun str ->
@@ -189,7 +192,7 @@ module Contents = struct
 
   let read contents_root nv =
     log "read %s" (OpamPackage.to_string nv);
-    let root = contents_root / OpamPackage.to_string nv in
+    let root = OpamFilename.Op.(contents_root / OpamPackage.to_string nv) in
     let files = OpamFilename.rec_files root in
     let files = List.map (fun file ->
         let base = base (OpamFilename.remove_prefix root file) in
@@ -200,7 +203,7 @@ module Contents = struct
 
   let write contents_root nv t =
     log "write %s" (OpamPackage.to_string nv);
-    let root = contents_root / OpamPackage.to_string nv in
+    let root = OpamFilename.Op.(contents_root / OpamPackage.to_string nv) in
     if not (OpamFilename.exists_dir root) then (
       OpamFilename.mkdir root;
       Git.init root;
@@ -221,47 +224,16 @@ module Packages = struct
 
   let log = OpamConsole.log "PACKAGES"
 
-  open OpamFile
-
   type t = {
     nv      : package;
     prefix  : string option;
-    opam    : OPAM.t;
-    url     : URL.t option;
-    descr   : Descr.t option;
+    opam    : OpamFile.OPAM.t;
     files   : (basename * string * int) list;
     contents: (basename * string * int) list;
     archive : string option;
   }
 
-  let opam nv seed =
-    let opam = OPAM.create nv in
-    let maintainer = "test-" ^ string_of_int seed in
-    OPAM.with_maintainer [maintainer] opam
-
-  let add_depend t ?(formula=OpamFormula.Empty) name =
-    let frm = OpamFormula.map (fun a -> Atom (Constraint a)) formula in
-    let depends =
-      OpamFormula.And
-        (OPAM.depends t.opam,
-         Atom (OpamPackage.Name.of_string name, frm)) in
-    { t with opam = OPAM.with_depends depends t.opam }
-
-  let add_depend_with_runtime_checks opam_root t ?formula name =
-    let t = add_depend t ?formula name in
-    let (/) = Filename.concat in
-    let check_cmd =
-      let l = [ "test"; "-d"; (OpamFilename.Dir.to_string opam_root/"system"/"lib"/name) ] in
-      List.map (fun s -> CString s, None) l, None
-    in
-    let opam =
-      t.opam |>
-      OpamFile.OPAM.with_build (OpamFile.OPAM.build t.opam @ [check_cmd]) |>
-      OpamFile.OPAM.with_remove (OpamFile.OPAM.remove t.opam @ [check_cmd])
-    in
-    { t with opam }
-
-  let url kind path = function
+  let t_url kind path = function
     | 0 -> None
     | i ->
       let url = match kind with
@@ -272,13 +244,69 @@ module Packages = struct
         | Some `rsync ->
           OpamUrl.parse ~backend:`rsync (OpamFilename.Dir.to_string path)
         | _           -> failwith "TODO" in
-      let url_file = URL.create url in
+      let url_file = OpamFile.URL.create url in
       (* let checksum = Printf.sprintf "%032d" i in *)
       Some ((* URL.with_checksum checksum *) url_file)
 
-  let descr = function
+  let t_descr = function
     | 0 -> None
-    | i -> Some (Descr.create (Printf.sprintf "This is a very nice package (%d)!" i))
+    | i ->
+      Some (OpamFile.Descr.create
+              (Printf.sprintf "This is a very nice package (%d)!" i))
+
+  let mandatory_fields case ?seed opam =
+    let seed =
+      match seed with
+      | None -> ""
+      | Some s -> "-" ^ string_of_int s
+    in
+    let test_str s = [Printf.sprintf "%s-%s%s" case s seed] in
+    let maintainer = test_str "maintainer" in
+    let homepage = test_str "homepage" in
+    let bug_report = test_str "bug" in
+    let author = test_str "authors" in
+    let descr = t_descr 4142 in
+    let dev_repo = OpamUrl.of_string ("git://dev-repo" ^ seed) in
+    opam
+    |> OpamFile.OPAM.with_maintainer maintainer
+    |> OpamFile.OPAM.with_homepage homepage
+    |> OpamFile.OPAM.with_bug_reports bug_report
+    |> OpamFile.OPAM.with_author author
+    |> OpamFile.OPAM.with_descr_opt descr
+    |> OpamFile.OPAM.with_dev_repo dev_repo
+
+
+  let opam nv kind path seed =
+    let opam = OpamFile.OPAM.create nv in
+    let url = t_url kind path seed in
+    let descr = t_descr seed in
+    mandatory_fields "test" ~seed opam
+    |> OpamFile.OPAM.with_url_opt url
+    |> OpamFile.OPAM.with_descr_opt descr
+
+  let add_depend t ?(formula=OpamFormula.Empty) name =
+    let frm = OpamFormula.map (fun a -> Atom (Constraint a)) formula in
+    let depends =
+      OpamFormula.And
+        (OpamFile.OPAM.depends t.opam,
+         Atom (OpamPackage.Name.of_string name, frm)) in
+    { t with opam = OpamFile.OPAM.with_depends depends t.opam }
+
+  let add_depend_with_runtime_checks opam_root t ?formula name =
+    let t = add_depend t ?formula name in
+    let check_cmd =
+      let l =
+        [ "test"; "-d";
+          (OpamFilename.(Dir.to_string Op.(opam_root/"system"/"lib"/name))) ]
+      in
+      List.map (fun s -> CString s, None) l, None
+    in
+    let opam =
+      t.opam |>
+      OpamFile.OPAM.with_build (OpamFile.OPAM.build t.opam @ [check_cmd]) |>
+      OpamFile.OPAM.with_remove (OpamFile.OPAM.remove t.opam @ [check_cmd])
+    in
+    { t with opam }
 
   let archive contents nv seed =
     match seed with
@@ -289,7 +317,7 @@ module Packages = struct
       let tmp_file = Filename.temp_file (OpamPackage.to_string nv) "archive" in
       log "Creating an archive file in %s" tmp_file;
       OpamFilename.with_tmp_dir (fun root ->
-          let dir = root / OpamPackage.to_string nv in
+          let dir = OpamFilename.Op.(root / OpamPackage.to_string nv) in
           List.iter (fun (base, contents, mode) ->
               let file = OpamFilename.create dir base in
               OpamFilename.write file contents;
@@ -317,13 +345,12 @@ module Packages = struct
 
   let file_list repo prefix nv =
     let opam = OpamRepositoryPath.opam repo prefix nv in
-    let descr = OpamRepositoryPath.descr repo prefix nv in
-    let url = OpamRepositoryPath.url repo prefix nv in
     let files = OpamRepositoryPath.files repo prefix nv in
     let archive =
-      repo / ".." / "repo_archives" // (OpamPackage.to_string nv ^ ".tar.gz")
+      OpamFilename.Op.(
+        repo / ".." / "repo_archives" // (OpamPackage.to_string nv ^ ".tar.gz"))
     in
-    opam, descr, url, files, archive
+    opam, files, archive
 
   let file_list_of_t repo t =
     file_list repo t.prefix t.nv
@@ -333,17 +360,13 @@ module Packages = struct
     | Some x -> f x
 
   let write repo contents_root t =
-    let opam, descr, url, files, archive = file_list_of_t repo t in
+    let opam, files, archive = file_list_of_t repo t in
     List.iter OpamFilename.remove [
-        OpamFile.filename opam;
-        OpamFile.filename descr;
-        OpamFile.filename url;
-        archive
+      OpamFile.filename opam;
+      archive
     ];
     OpamFilename.rmdir files;
-    OPAM.write opam t.opam;
-    write_o (Descr.write descr) t.descr;
-    write_o (URL.write url) t.url;
+    OpamFile.OPAM.write opam t.opam;
     write_o (OpamFilename.write archive) t.archive;
     Contents.write contents_root t.nv t.contents;
     if t.files <> [] then (
@@ -360,10 +383,8 @@ module Packages = struct
     else None
 
   let read repo contents_root prefix nv =
-    let opam, descr, url, files, archive = file_list repo prefix nv in
-    let opam = OPAM.read opam in
-    let descr = Descr.read_opt descr in
-    let url = URL.read_opt url in
+    let opam, files, archive = file_list repo prefix nv in
+    let opam = OpamFile.OPAM.read opam in
     let files =
       if not (OpamFilename.exists_dir files) then []
       else
@@ -375,11 +396,11 @@ module Packages = struct
           ) all in
     let contents = Contents.read contents_root nv in
     let archive = read_o OpamFilename.read archive in
-    { nv; prefix; opam; descr; url; files; contents; archive }
+    { nv; prefix; opam; files; contents; archive }
 
   let add repo contents_root t =
     write repo contents_root t;
-    let opam, descr, url, files, archive = file_list_of_t repo t in
+    let opam, files, archive = file_list_of_t repo t in
     let commit file =
       if OpamFilename.exists file then (
         Git.add repo file;
@@ -388,12 +409,9 @@ module Packages = struct
           (OpamPackage.to_string t.nv) (OpamFilename.to_string file);
         let commit = Git.revision repo in
         Git.msg repo commit t.nv "Add %s" (OpamFilename.to_string file);
-      ) in
-    List.iter commit [
-      OpamFile.filename opam;
-      OpamFile.filename descr;
-      OpamFile.filename url;
-    ];
+      )
+    in
+    commit (OpamFile.filename opam);
     if OpamFilename.exists_dir files then (
       let all = OpamFilename.rec_files files in
       List.iter (Git.add repo) all;
@@ -407,30 +425,39 @@ end
 
 module OPAM = struct
 
-  let opam ?(fake=false) ?(env=[]) opam_root command args =
+  let exec ?(fake=false) ?(env=[]) opam_root command args =
     OpamConsole.msg "%s\n"
       (Color.blue ">> %s opam %s %s "
-         (String.concat ";" env)
-         command
-         (String.concat " " args));
+         (String.concat ";" env) command (String.concat " " args));
     let debug = if OpamConsole.debug() then ["--debug"] else [] in
-    OpamSystem.command
+    let args =
+      command :: "--yes" :: ["--root"; (OpamFilename.Dir.to_string opam_root)]
+      @ debug
+      @ (if fake then ["--fake"] else [])
+      @ args
+    in
+    let open OpamProcess.Job.Op in
+    OpamProcess.Job.run @@ OpamSystem.make_command
       ~env:(Array.concat [Unix.environment(); Array.of_list env])
-      ~verbose:true
-      ~allow_stdin:false
-      ("opam" :: command ::
-         "--yes" ::
-         ["--root"; (OpamFilename.Dir.to_string opam_root)]
-         @ debug
-         @ (if fake then ["--fake"] else [])
-         @ args)
+      ~verbose:true ~allow_stdin:false
+      "opam" args  @@> (fun r ->
+        if not (OpamProcess.check_success_and_cleanup r) then
+          OpamConsole.msg "Command failed [%d]\n" r.OpamProcess.r_code;
+        Done OpamProcess.(r.r_code,r.r_stdout))
+
+  let opam ?(fake=false) ?(env=[]) opam_root command args =
+    let rcode, _ = exec ~fake ~env opam_root command args in
+    if rcode <> 0 then failwith "opam command failed"
+
+  let opam_code ?(fake=false) ?(env=[]) opam_root command args =
+    fst @@ exec ~fake ~env opam_root command args
+
+  let opam_out ?(fake=false) ?(env=[]) opam_root command args =
+    snd @@ exec ~fake ~env opam_root command args
 
   let var opam_root var =
-    String.concat "\n"
-      (OpamSystem.read_command_output
-         ("opam" :: "config" :: "var" ::
-          "--root" :: (OpamFilename.Dir.to_string opam_root)
-          :: [var]))
+    let out = opam_out opam_root "config" ("var" :: [var]) in
+    String.concat "\n" out
 
   let init opam_root repo_name repo_url =
     OpamClientConfig.update ();
@@ -442,12 +469,21 @@ module OPAM = struct
     opam opam_root "switch" ["create";"system";"--empty"];
     opam opam_root "config" ["set";"ocaml-version";"4.02.1"]
 
-  let install opam_root ?version name =
-    opam opam_root "install" [
+  let install_code opam_root ?version name =
+    opam_code opam_root "install" [
       match version with
       | None -> OpamPackage.Name.to_string name
       | Some v -> OpamPackage.to_string (OpamPackage.create name v)
     ]
+
+  let install opam_root ?version name =
+    ignore @@ install_code opam_root ?version name
+
+  let install_dir opam_root ?(recs=false) ?subpath dir =
+    opam opam_root "install"
+      ([OpamFilename.Dir.to_string dir]
+       @ (if recs then ["--rec"] else [])
+       @ (match subpath with | None -> [] | Some s -> ["--subpath";s]))
 
   let reinstall opam_root ?version name =
     opam opam_root "reinstall" [
@@ -470,15 +506,18 @@ module OPAM = struct
 
   let pin opam_root ?(action=false) name path =
     opam opam_root "pin"
-      (["add"; OpamPackage.Name.to_string name; "--kind=local"; OpamFilename.Dir.to_string path]
+      (["add"; OpamPackage.Name.to_string name;
+        "--kind=local"; OpamFilename.Dir.to_string path]
        @ if action then [] else ["-n"])
 
   let vpin opam_root name version =
     opam opam_root "pin"
-      ["add"; "-n"; OpamPackage.Name.to_string name; OpamPackage.Version.to_string version]
+      ["add"; "-n";
+       OpamPackage.Name.to_string name;
+       OpamPackage.Version.to_string version]
 
   let pin_kind opam_root ?(action=false) ?kind name target =
-    opam opam_root "pin"
+   opam opam_root "pin"
       (["add"; OpamPackage.Name.to_string name; target]
        @ (match kind with None -> [] | Some k -> ["--kind";k])
        @ if action then [] else ["-n"])
@@ -538,7 +577,9 @@ module Check = struct
   exception Found of file_attribute * filename
 
   let find_binding fn map =
-    try A.Map.iter (fun a f -> if fn a f then raise (Found (a,f))) map; raise Not_found
+    try
+      A.Map.iter (fun a f -> if fn a f then raise (Found (a,f))) map;
+      raise Not_found
     with Found (a,f) -> (a,f)
 
   let attributes ?filter dir =
@@ -661,15 +702,18 @@ module Check = struct
           match OpamUrl.local_dir (OpamFile.URL.url u) with
           | Some package_root ->
             let filter file =
-              if OpamFilename.starts_with (package_root / ".git") file then None
+              if OpamFilename.starts_with
+                  OpamFilename.Op.(package_root / ".git") file
+              then None
               else if OpamFilename.ends_with ".install" file then None
-              else Some (OpamFilename.dirname file) in
+              else Some (OpamFilename.dirname file)
+            in
             attributes ~filter package_root
           | None -> A.Map.empty
       in
       let files = match OpamFile.OPAM.metadata_dir opam_file with
         | None   -> A.Map.empty
-        | Some (_, d) -> attributes (OpamFilename.Dir.of_string d  / "files") in
+        | Some (_, d) -> attributes OpamFilename.(Op.(Dir.of_string d  / "files")) in
 
       A.Map.union (fun x y -> x) files base in
 

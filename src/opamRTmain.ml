@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 OCamlPro
+ * Copyright (c) 2013-2019 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
  *         Louis Gesbert <louis.gesbert@ocamlpro.com>
  *
