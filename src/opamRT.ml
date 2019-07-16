@@ -771,8 +771,9 @@ module Pin_advanced : TEST = struct
       (fun name ->
          OpamFilename.Dir.to_string (pindir / OpamPackage.Name.to_string name))
       "git"
-      (v 5);
+      (v 5)
 
+(*  For the moment don't activate it
     OpamConsole.header_msg "Recursive & subpath pinning";
     let a_b = OpamPackage.Name.of_string "a_b" in
     let a_c = OpamPackage.Name.of_string "a_c" in
@@ -850,7 +851,7 @@ module Pin_advanced : TEST = struct
     OPAM.remove_dir opam_root top_dir;
     List.iter (fun a -> OPAM.remove_dir opam_root ~subpath:a top_dir) pkgs_path;
     check_installed path []
-
+*)
   let run kind = check_and_run kind run_u
 end
 
