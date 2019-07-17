@@ -7,7 +7,7 @@ KINDS = local http git
 all: opam-rt
 
 opam-rt:
-	dune build src/lib/opam_rt_lib.cma src/tests/main.exe src/server/server.exe
+	dune build --root . src/lib/opam_rt_lib.cma src/tests/main.exe src/server/server.exe
 	ln -f _build/default/src/tests/main.exe opam-rt
 	ln -f _build/default/src/server/server.exe opam-rt-server
 
