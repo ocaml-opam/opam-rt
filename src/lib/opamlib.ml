@@ -21,10 +21,14 @@ let default_switch = OpamSwitch.of_string "system"
 
 let repo_opams repo =
   OpamPackage.Map.mapi (fun nv pfx ->
-      OpamRepositoryPath.packages repo pfx nv |>
+    OpamRepositoryPath.packages repo pfx nv |>
       OpamFileTools.read_opam |>
       function Some x -> x | None -> assert false)
-    (OpamRepository.packages_with_prefixes repo)
+  (OpamRepository.packages_with_prefixes
+           {repo_root = repo;
+            repo_name = OpamRepositoryName.of_string "foo";
+            repo_url = OpamUrl.empty;
+            repo_trust = None})
 
 let exec ?(fake=false) ?(env=[]) opam_root command args =
   OpamConsole.msg "%s\n"

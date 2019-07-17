@@ -64,7 +64,7 @@ let create_repo_with_history repo contents_root =
   OpamFilename.mkdir repo;
   Git.init repo;
   let repo_file =
-    OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ()
+    OpamFile.Repo.create ~opam_version:OpamVersion.current_nopatch ()
   in
   let repo_filename = OpamRepositoryPath.repo repo in
   OpamFile.Repo.write repo_filename repo_file;
@@ -86,7 +86,7 @@ let create_simple_repo repo contents_root contents_kind =
   OpamFilename.mkdir repo;
   Git.init repo;
   let repo_file =
-    OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ()
+    OpamFile.Repo.create ~opam_version:OpamVersion.current_nopatch ()
   in
   let repo_filename = OpamRepositoryPath.repo repo in
   OpamFile.Repo.write repo_filename repo_file;

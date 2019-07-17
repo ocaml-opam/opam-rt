@@ -192,8 +192,7 @@ let contents opam_root nv opam_file =
     let files =
       match OpamFile.OPAM.metadata_dir opam_file with
       | None   -> Attr.Map.empty
-      | Some (_, d) ->
-        attributes OpamFilename.(Op.(Dir.of_string d  / "files"))
+      | Some d -> attributes OpamFilename.Op.(d  / "files")
     in
     Attr.Map.union (fun x _ -> x) files base
   in
