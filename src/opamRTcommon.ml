@@ -497,6 +497,13 @@ module OPAM = struct
       ((if auto then ["-a"] else [])
        @ [OpamPackage.Name.to_string name])
 
+  let remove_dir opam_root ?(auto=false) ?(recs=false) ?subpath dir =
+    opam opam_root "remove"
+      ((if auto then ["-a"] else [])
+       @ (if recs then ["--rec"] else [])
+       @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
+       @ [OpamFilename.Dir.to_string dir])
+
   let update opam_root =
     opam opam_root "update" []
 
@@ -504,27 +511,46 @@ module OPAM = struct
     opam opam_root ?fake "upgrade"
       (List.map OpamPackage.Name.to_string packages)
 
-  let pin opam_root ?(action=false) name path =
+  let pin opam_root ?(recs=false) ?subpath ?(action=false) name path =
     opam opam_root "pin"
-      (["add"; OpamPackage.Name.to_string name;
+      (["add";OpamPackage.Name.to_string name;
         "--kind=local"; OpamFilename.Dir.to_string path]
+       @ (if recs then ["--recursive"] else [])
+       @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
        @ if action then [] else ["-n"])
 
   let vpin opam_root name version =
     opam opam_root "pin"
-      ["add"; "-n";
+      ["add";"-n";
        OpamPackage.Name.to_string name;
        OpamPackage.Version.to_string version]
 
-  let pin_kind opam_root ?(action=false) ?kind name target =
-   opam opam_root "pin"
+  let pin_kind opam_root ?(action=false) ?kind
+      name target =
+    opam opam_root "pin"
       (["add"; OpamPackage.Name.to_string name; target]
        @ (match kind with None -> [] | Some k -> ["--kind";k])
        @ if action then [] else ["-n"])
 
-  let unpin opam_root ?(action=false) name =
+  let pin_dir opam_root ?(recs=false) ?subpath ?(action=false) ?kind
+      dir =
     opam opam_root "pin"
-      (["remove"; OpamPackage.Name.to_string name]
+      ([OpamFilename.Dir.to_string dir]
+       @ (match kind with None -> [] | Some k -> ["--kind";k])
+       @ (if recs then ["--rec"] else [])
+       @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
+       @ if action then [] else ["-n"])
+
+  let unpin opam_root ?(action=false) name =
+    opam opam_root "unpin"
+      ([OpamPackage.Name.to_string name]
+       @ if action then [] else ["-n"])
+
+  let unpin_dir opam_root ?(recs=false) ?subpath ?(action=false) dir =
+    opam opam_root "unpin"
+      ([OpamFilename.Dir.to_string dir]
+       @ (if recs then ["--rec"] else [])
+       @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
        @ if action then [] else ["-n"])
 
   let pin_edit opam_root ?(action=false) name write_file =
@@ -534,6 +560,10 @@ module OPAM = struct
     opam opam_root ~env "pin"
       (["edit"; OpamPackage.Name.to_string name]
        @ if action then [] else ["-n"])
+
+  let pinned opam_root =
+    opam_out opam_root "pin" ["list"]
+    |> List.map (fun s -> OpamStd.String.split s ' ')
 
   let import opam_root ?fake file =
     opam opam_root ?fake "switch" ["import"; OpamFilename.to_string file]

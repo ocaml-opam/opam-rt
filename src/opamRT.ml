@@ -149,6 +149,36 @@ let check_installed path  ?(roots = []) wished_list =
        (pkg_list wished_roots wished_list);
      failwith "Installed packages don't match expectations")
 
+let check_pinned path ?kind wished =
+  let packages = OPAM.pinned path in
+  let packages =
+    match kind with
+    | None -> List.map List.hd packages
+    | Some k ->
+      OpamStd.List.filter_map (fun l ->
+          match l with
+          | nv::kind::_url when kind = k -> Some nv
+          | _ -> None) packages
+  in
+  let packages =
+    List.map OpamPackage.of_string packages
+    |> OpamPackage.Set.of_list
+  in
+  let wished = OpamPackage.Set.of_list wished in
+  if OpamPackage.Set.compare wished packages = 0 then
+    OpamConsole.msg "%s %spinned: %s\n"
+      (Color.green "[OK]")
+      (match kind with | Some k -> k^"-" | None -> "")
+      (OpamPackage.Set.to_string wished)
+  else
+    (OpamConsole.msg "%s %spinned: %s\n       expecting: %s\n"
+       (Color.red "[FAIL]")
+       (match kind with | Some k -> k^"-" | None -> "")
+       (OpamPackage.Set.to_string packages)
+       (OpamPackage.Set.to_string wished);
+     failwith "Pinned packages don't match expectations")
+
+
 let update_server_index repo_root repo_url =
   match repo_url.OpamUrl.backend with
   | `http ->
@@ -743,6 +773,85 @@ module Pin_advanced : TEST = struct
       "git"
       (v 5)
 
+(*  For the moment don't activate it
+    OpamConsole.header_msg "Recursive & subpath pinning";
+    let a_b = OpamPackage.Name.of_string "a_b" in
+    let a_c = OpamPackage.Name.of_string "a_c" in
+    let a_d_e = OpamPackage.Name.of_string "a_d_e" in
+    let a_f_g_h = OpamPackage.Name.of_string "a_f_g_h" in
+    let pkgs_ns = ["a_b"; "a_c"; "a_d_e"  ; "a_f_g_h"] in
+    let pkgs_path = ["a_b"; "a_c"; "d/a_d_e"; "f/g/a_f_g_h"] in
+    let pkgs_n = a :: (List.map  OpamPackage.Name.of_string pkgs_ns) in
+    let pkgs = List.map (fun a -> a-v 4) pkgs_n in
+    let top_dir = contents_root / "rec-pins" / "a" in
+    OpamFilename.mkdir top_dir;
+    Git.init top_dir;
+    let orig_pkgs = [
+      false, (a-v 4),       (top_dir // "opam");
+      true,  (a_c-v 4),     (top_dir /"a_c"//"opam");
+      false, (a_b-v 4),     (top_dir / "a_b" // "opam");
+      true,  (a_f_g_h-v 4), (top_dir /"f"/"g"/"a_f_g_h"//"opam");
+      false, (a_d_e-v 4),   (top_dir / "d" /"a_d_e" // "opam");
+    ] in
+    List.iter (fun (git,pkg,path) ->
+        write_opam pkg ["pinned_4"] path;
+        if git then
+          Git.commit_file top_dir path
+            "add file for %s" (OpamPackage.to_string pkg))
+      orig_pkgs;
+
+    let check_install ?(pin=false) tfile pins pkgs =
+      if pin then
+        List.iter (fun (kind,l) -> check_pinned opam_root ~kind l) pins;
+      check_installed path pkgs;
+      List.iter (fun a ->  check_pkg_shares a [tfile]) pkgs_n
+    in
+    let recs = true in
+    let pins = [
+      "git",   [a_c-v 4; a_f_g_h-v 4];
+      "rsync", [a-v 4; a_b-v 4; a_d_e-v 4] ;
+    ] in
+    let check_install4 ?pin () = check_install ?pin "pinned_4" pins pkgs in
+    step "Pin and install recursively";
+    OPAM.pin_dir opam_root ~recs top_dir;
+    List.iter (fun a -> OPAM.install opam_root a) pkgs_n;
+    check_install4 ~pin:true ();
+    step "Unpin recursively";
+    OPAM.unpin_dir opam_root ~recs top_dir;
+    List.iter (fun a -> OPAM.reinstall opam_root a) pkgs_n;
+    check_install4 ();
+    step "Remove recursively";
+    OPAM.pin_dir opam_root ~recs top_dir;
+    OPAM.remove_dir ~recs opam_root top_dir;
+    check_installed path [];
+
+    step "Pin with subpath";
+    OPAM.install_dir opam_root top_dir;
+    List.iter (fun a -> OPAM.install_dir opam_root ~subpath:a top_dir) pkgs_path;
+    check_install4 ~pin:true ();
+
+    step "Update pinned opam";
+    let to6 p = (OpamPackage.name p)-v 6 in
+    List.iter (fun (git,pkg,path) ->
+        write_opam pkg ["pinned_6"] path;
+        if git then
+          Git.commit_file top_dir path
+            "add file for %s" (OpamPackage.to_string pkg))
+      (List.map (fun (g,pkg,p) -> g, to6 pkg, p) orig_pkgs);
+    let check_install6 ?pin () =
+      check_install ?pin "pinned_6"
+        (List.map (fun (k,l) -> k, List.map to6 l) pins)
+        (List.map to6 pkgs)
+    in
+    OPAM.update opam_root;
+    OPAM.upgrade opam_root pkgs_n;
+    check_install6 ~pin:true ();
+
+    step "Remove with subpath";
+    OPAM.remove_dir opam_root top_dir;
+    List.iter (fun a -> OPAM.remove_dir opam_root ~subpath:a top_dir) pkgs_path;
+    check_installed path []
+*)
   let run kind = check_and_run kind run_u
 end
 
