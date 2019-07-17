@@ -18,10 +18,10 @@ depends: [
 synopsis: "Test suite for opam"
 pin-depends:
 [
-  [ "opam-client.2.1.0~beta"     "git+https://github.com/ocaml/opam#master"]
-  [ "opam-core.2.1.0~beta"       "git+https://github.com/ocaml/opam#master"]
-  [ "opam-format.2.1.0~beta"     "git+https://github.com/ocaml/opam#master"]
-  [ "opam-repository.2.1.0~beta" "git+https://github.com/ocaml/opam#master"]
-  [ "opam-solver.2.1.0~beta"     "git+https://github.com/ocaml/opam#master"]
-  [ "opam-state.2.1.0~beta"      "git+https://github.com/ocaml/opam#master"]
+  [ "opam-client.2.0.5"     "git+https://github.com/ocaml/opam#2.0"]
+  [ "opam-core.2.0.5"       "git+https://github.com/ocaml/opam#2.0"]
+  [ "opam-format.2.0.5"     "git+https://github.com/ocaml/opam#2.0"]
+  [ "opam-repository.2.0.5" "git+https://github.com/ocaml/opam#2.0"]
+  [ "opam-solver.2.0.5"     "git+https://github.com/ocaml/opam#2.0"]
+  [ "opam-state.2.0.5"      "git+https://github.com/ocaml/opam#2.0"]
 ]
