@@ -1,7 +1,8 @@
 (*
  * Copyright (c) 2013-2019 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
- *         Louis Gesbert <louis.gesbert@ocamlpro.com>
+ *         Louis Gesbert <louis.gesbert@ocamlpro.com>,
+ *         Raja Boujbel <raja.boujbel@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,17 +19,33 @@
 
 open OpamTypes
 
-val shuffle : 'a list -> 'a list
-val package :
-  string ->
-  int ->
-  [> `git | `rsync ] option ->
-  dirname -> ?gener_archive:bool -> int -> OpamRTcommon.Packages.t
-val a1 : dirname -> ?gener_archive:bool -> int -> OpamRTcommon.Packages.t
-val a2 : dirname -> ?gener_archive:bool -> int -> OpamRTcommon.Packages.t
-val not_very_random : int -> int
-val ar : dirname -> 'a -> OpamRTcommon.Packages.t
-val random_list : int -> (int -> 'a) -> 'a list
-val create_repo_with_history : dirname -> dirname -> unit
-val create_simple_repo :
-  dirname -> dirname -> [> `git | `rsync ] option -> unit
+val commit: dirname -> ('a, unit, string, unit) format4 -> 'a
+
+val commit_file:
+  dirname -> filename -> ('a, unit, string, unit) format4 -> 'a
+
+val commit_dir:
+  dirname -> dirname -> ('a, unit, string, unit) format4 -> 'a
+
+val revision: dirname -> string
+
+val commits: dirname -> string list
+
+val init: dirname -> unit
+
+val test_tag: string
+
+val branch: dirname -> unit
+
+val master: dirname -> unit
+
+val add: dirname -> filename -> unit
+
+val add_list: dirname -> filename list -> unit
+
+val checkout: dirname -> string -> unit
+
+val msg:
+  dirname -> string -> package -> ('a, unit, string, unit) format4 -> 'a
+
+
