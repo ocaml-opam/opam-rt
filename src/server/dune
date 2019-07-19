@@ -1,0 +1,6 @@
+(executable
+  (name server)
+  (public_name opam-rt-server)
+  (libraries opam-core cohttp-lwt-unix)
+)
+(include_subdirs no) 
