@@ -168,7 +168,7 @@ let check_installed path  ?(roots = []) wished_list =
        (pkg_list wished_roots wished_list);
      failwith "Installed packages don't match expectations")
 
-let _check_pinned path ?kind wished =
+let check_pinned path ?kind wished =
   let packages = Opamlib.pinned path in
   let packages =
     match kind with
@@ -176,7 +176,8 @@ let _check_pinned path ?kind wished =
     | Some k ->
       OpamStd.List.filter_map (fun l ->
           match l with
-          | nv::kind::_url when kind = k -> Some nv
+          | (nv::_::kind::_url::[] | nv::kind::_url::[]) when kind = k ->
+            Some nv
           | _ -> None) packages
   in
   let packages =
