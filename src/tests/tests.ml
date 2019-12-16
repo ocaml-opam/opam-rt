@@ -811,7 +811,77 @@ module Pin_advanced = struct
       (fun name ->
          OpamFilename.Dir.to_string (pindir / OpamPackage.Name.to_string name))
       "git"
-      (v 5)
+      (v 5);
+
+    OpamConsole.header_msg "Working-dir pin";
+    let pindir = contents_root / "wd" in
+    OpamFilename.mkdir pindir;
+    let n = OpamPackage.Name.of_string "workingdir" in
+    let v = OpamPackage.Version.of_string "23" in
+    let nv = OpamPackage.create n v in
+    let script_name = "wd-script" in
+    let script_content = "echo 'FOO'" in
+    let script = pindir // script_name in
+    let opamfile = pindir // "opam" in
+    (* opam file *)
+    let write_opam build =
+      OpamFile.OPAM.create nv
+      |> OpamFile.OPAM.with_build build
+      |> Packages.mandatory_fields "wd-pin"
+      |> OpamFile.OPAM.write (OpamFile.make opamfile)
+    in
+    write_opam ([[CString "bash", None; CString script_name, None], None]);
+    OpamFilename.write script script_content;
+    OpamFilename.chmod script 455;
+    (* git stuff *)
+    Git.init pindir;
+    Git.commit_file pindir opamfile "opam file";
+    Git.commit_file pindir script "script file";
+    step "Initial pin";
+    Opamlib.pin_dir opam_root pindir;
+    check_pinned opam_root ~kind:"git" [nv];
+    Opamlib.install opam_root n;
+    check_installed path [nv];
+    step "Update working-dir";
+    let script_content = "foo" in
+    OpamFilename.write script script_content;
+    let untracked_name = "untrack" in
+    let untracked_content = "echo 'BAZ'" in
+    let untracked = pindir // untracked_name in
+    OpamFilename.write untracked untracked_content;
+    OpamFilename.chmod untracked 455;
+    write_opam ([
+        [CString "bash", None; CString untracked_name, None], None
+      ]);
+    Opamlib.install opam_root ~oargs:"--working-dir" n;
+    check_installed path [nv];
+    let check_files lst =
+      OpamStd.List.filter_map (fun (filename, content) ->
+          let file =
+            opam_root / "system" / ".opam-switch" / "sources" /
+            "workingdir" // filename
+          in
+          if OpamFilename.exists file then
+            let read = OpamFilename.read file in
+            if read = content then None
+            else
+              Some (Printf.sprintf "%s: mismatching content %S, expecting %S"
+                      filename read content)
+          else Some (Printf.sprintf "%s doesn't exists" filename)) lst
+    in
+    let unvcs_files =
+      check_files [
+        script_name, script_content;
+        untracked_name, untracked_content;
+      ]
+    in
+    if unvcs_files = [] then
+      OpamConsole.msg "%s Untracked files copied\n"
+        (OpamConsole.colorise `green "[OK]")
+    else
+      OpamConsole.msg "%s Error on some untracked files:\n%s"
+        (OpamConsole.colorise `red "[FAIL]")
+        (OpamStd.Format.itemize (fun x -> x) unvcs_files)
 
 (*  For the moment don't activate it
     OpamConsole.header_msg "Recursive & subpath pinning";
