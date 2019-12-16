@@ -3,4 +3,6 @@
   (public_name opam-rt-server)
   (libraries opam-core cohttp-lwt-unix)
 )
-(include_subdirs no) 
+(include_subdirs no)
+(env (dev
+  (flags (:standard -warn-error -A))))

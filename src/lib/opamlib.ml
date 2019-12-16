@@ -70,97 +70,112 @@ let init opam_root repo_name repo_url =
   opam opam_root "switch" ["create";"system";"--empty"];
   opam opam_root "config" ["set";"ocaml-version";"4.02.1"]
 
-let install_code opam_root ?version name =
-  opam_code opam_root "install" [
-    match version with
-    | None -> OpamPackage.Name.to_string name
-    | Some v -> OpamPackage.to_string (OpamPackage.create name v)
-  ]
+let wrap_oargs other_args args =
+  match other_args with
+  | None -> args
+  | Some oargs -> args @ OpamStd.String.split oargs ' '
 
-let install opam_root ?version name =
-  ignore @@ install_code opam_root ?version name
+let install_code opam_root ?version ?oargs name =
+  opam_code opam_root "install"
+    (wrap_oargs oargs [
+        match version with
+        | None -> OpamPackage.Name.to_string name
+        | Some v -> OpamPackage.to_string (OpamPackage.create name v)
+      ])
 
-let install_dir opam_root ?(recs=false) ?subpath dir =
+let install opam_root ?version ?oargs name =
+  ignore @@ install_code opam_root ?version ?oargs name
+
+let install_dir opam_root ?(recs=false) ?subpath ?oargs dir =
   opam opam_root "install"
-    ([OpamFilename.Dir.to_string dir]
-     @ (if recs then ["--rec"] else [])
-     @ (match subpath with | None -> [] | Some s -> ["--subpath";s]))
+    (wrap_oargs oargs
+       ([OpamFilename.Dir.to_string dir]
+        @ (if recs then ["--rec"] else [])
+        @ (match subpath with | None -> [] | Some s -> ["--subpath";s])))
 
-let reinstall opam_root ?version name =
-  opam opam_root "reinstall" [
-    match version with
-    | None -> OpamPackage.Name.to_string name
-    | Some v -> OpamPackage.to_string (OpamPackage.create name v)
-  ]
+let reinstall opam_root ?version ?oargs name =
+  opam opam_root "reinstall"
+    (wrap_oargs oargs [
+        match version with
+        | None -> OpamPackage.Name.to_string name
+        | Some v -> OpamPackage.to_string (OpamPackage.create name v)
+      ])
 
-let remove opam_root ?(auto=false) name =
+let remove opam_root ?(auto=false) ?oargs name =
   opam opam_root "remove"
-    ((if auto then ["-a"] else [])
-     @ [OpamPackage.Name.to_string name])
+    (wrap_oargs oargs
+       ((if auto then ["-a"] else [])
+        @ [OpamPackage.Name.to_string name]))
 
-let remove_dir opam_root ?(auto=false) ?(recs=false) ?subpath dir =
+let remove_dir opam_root ?(auto=false) ?(recs=false) ?subpath ?oargs dir =
   opam opam_root "remove"
-    ((if auto then ["-a"] else [])
-     @ (if recs then ["--rec"] else [])
-     @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
-     @ [OpamFilename.Dir.to_string dir])
+    (wrap_oargs oargs
+       ((if auto then ["-a"] else [])
+        @ (if recs then ["--rec"] else [])
+        @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
+        @ [OpamFilename.Dir.to_string dir]))
 
-let update opam_root =
-  opam opam_root "update" []
+let update ?oargs opam_root =
+  opam opam_root "update" (wrap_oargs oargs [])
 
-let upgrade opam_root ?fake packages =
+let upgrade opam_root ?fake ?oargs packages =
   opam opam_root ?fake "upgrade"
-    (List.map OpamPackage.Name.to_string packages)
+    (wrap_oargs oargs (List.map OpamPackage.Name.to_string packages))
 
-let pin opam_root ?(recs=false) ?subpath ?(action=false) name path =
+let pin opam_root ?(recs=false) ?subpath ?(action=false) ?oargs name path =
   opam opam_root "pin"
-    (["add";OpamPackage.Name.to_string name;
-      "--kind=local"; OpamFilename.Dir.to_string path]
-     @ (if recs then ["--recursive"] else [])
-     @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
-     @ if action then [] else ["-n"])
+    (wrap_oargs oargs
+       (["add";OpamPackage.Name.to_string name;
+         "--kind=local"; OpamFilename.Dir.to_string path]
+        @ (if recs then ["--recursive"] else [])
+        @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
+        @ if action then [] else ["-n"]))
 
-let vpin opam_root name version =
+let vpin opam_root ?oargs name version =
   opam opam_root "pin"
-    ["add";"-n";
-     OpamPackage.Name.to_string name;
-     OpamPackage.Version.to_string version]
+    (wrap_oargs oargs
+       ["add";"-n";
+        OpamPackage.Name.to_string name;
+        OpamPackage.Version.to_string version])
 
-let pin_kind opam_root ?(action=false) ?kind
-    name target =
+let pin_kind opam_root ?(action=false) ?kind ?oargs name target =
   opam opam_root "pin"
-    (["add"; OpamPackage.Name.to_string name; target]
-     @ (match kind with None -> [] | Some k -> ["--kind";k])
-     @ if action then [] else ["-n"])
+    (wrap_oargs oargs
+       (["add"; OpamPackage.Name.to_string name; target]
+        @ (match kind with None -> [] | Some k -> ["--kind";k])
+        @ if action then [] else ["-n"]))
 
-let pin_dir opam_root ?(recs=false) ?subpath ?(action=false) ?kind
-    dir =
+let pin_dir opam_root ?(recs=false) ?subpath ?(action=false) ?kind ?oargs dir =
   opam opam_root "pin"
-    ([OpamFilename.Dir.to_string dir]
-     @ (match kind with None -> [] | Some k -> ["--kind";k])
-     @ (if recs then ["--rec"] else [])
-     @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
-     @ if action then [] else ["-n"])
+    (wrap_oargs oargs
+       ([OpamFilename.Dir.to_string dir]
+        @ (match kind with None -> [] | Some k -> ["--kind";k])
+        @ (if recs then ["--rec"] else [])
+        @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
+        @ if action then [] else ["-n"]))
 
-let unpin opam_root ?(action=false) name =
+let unpin opam_root ?(action=false) ?oargs name =
   opam opam_root "unpin"
-    ([OpamPackage.Name.to_string name]
-     @ if action then [] else ["-n"])
+    (wrap_oargs oargs
+       ([OpamPackage.Name.to_string name]
+        @ if action then [] else ["-n"]))
 
-let unpin_dir opam_root ?(recs=false) ?subpath ?(action=false) dir =
+let unpin_dir opam_root ?(recs=false) ?subpath ?(action=false) ?oargs dir =
   opam opam_root "unpin"
-    ([OpamFilename.Dir.to_string dir]
-     @ (if recs then ["--rec"] else [])
-     @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
-     @ if action then [] else ["-n"])
+    (wrap_oargs oargs
+       ([OpamFilename.Dir.to_string dir]
+        @ (if recs then ["--rec"] else [])
+        @ (match subpath with | None -> [] | Some s -> ["--subpath";s])
+        @ if action then [] else ["-n"]))
 
-let pin_edit opam_root ?(action=false) name write_file =
+let pin_edit opam_root ?(action=false) ?oargs name write_file =
   let f = OpamSystem.temp_file "opamRT" in
   write_file (OpamFilename.of_string f);
   let env = [Printf.sprintf "OPAMEDITOR=cp -f %s" f] in
   opam opam_root ~env "pin"
-    (["edit"; OpamPackage.Name.to_string name]
-     @ if action then [] else ["-n"])
+    (wrap_oargs oargs
+       (["edit"; OpamPackage.Name.to_string name]
+        @ if action then [] else ["-n"]))
 
 let pinned opam_root =
   opam_out opam_root "pin" ["list"]
