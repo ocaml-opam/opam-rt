@@ -180,20 +180,20 @@ let run_u path =
   let pindir = contents_root / "wd" in
   OpamFilename.mkdir pindir;
   let n = OpamPackage.Name.of_string "workingdir" in
-  let v = OpamPackage.Version.of_string "23" in
-  let nv = OpamPackage.create n v in
+  let v23 = OpamPackage.Version.of_string "23" in
+  let nv = OpamPackage.create n v23 in
   let script_name = "wd-script" in
   let script_content = "echo 'FOO'" in
   let script = pindir // script_name in
   let opamfile = pindir // "opam" in
   (* opam file *)
-  let write_opam build =
+  let write_build_opam build =
     OpamFile.OPAM.create nv
     |> OpamFile.OPAM.with_build build
     |> Packages.mandatory_fields "wd-pin"
     |> OpamFile.OPAM.write (OpamFile.make opamfile)
   in
-  write_opam ([[CString "bash", None; CString script_name, None], None]);
+  write_build_opam ([[CString "bash", None; CString script_name, None], None]);
   OpamFilename.write script script_content;
   OpamFilename.chmod script 455;
   (* git stuff *)
@@ -213,7 +213,7 @@ let run_u path =
   let untracked = pindir // untracked_name in
   OpamFilename.write untracked untracked_content;
   OpamFilename.chmod untracked 455;
-  write_opam ([
+  write_build_opam ([
       [CString "bash", None; CString untracked_name, None], None
     ]);
   Opamlib.install opam_root ~oargs:"--working-dir" n;
