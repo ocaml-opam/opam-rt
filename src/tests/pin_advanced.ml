@@ -245,6 +245,8 @@ let run_u path =
     OpamConsole.msg "%s Error on some untracked files:\n%s"
       (OpamConsole.colorise `red "[FAIL]")
       (OpamStd.Format.itemize (fun x -> x) unvcs_files);
+  Opamlib.unpin_dir opam_root pindir;
+  Opamlib.remove opam_root n;
 
   OpamConsole.header_msg "Recursive & subpath pinning";
   let a_b = OpamPackage.Name.of_string "a_b" in
