@@ -88,7 +88,7 @@ let seed_flag =
   Arg.(value & opt int 1664 & doc)
 
 let set_seed seed =
-  Tests.set_seed seed
+  Utils.set_seed seed
 
 let data_dir =
   let doc =
@@ -97,7 +97,7 @@ let data_dir =
   Arg.(value & opt dir "data" & info ~doc ["--data"])
 
 let apply_data_dir data_dir =
-  Tests.set_datadir (OpamFilename.Dir.of_string data_dir)
+  Utils.set_datadir (OpamFilename.Dir.of_string data_dir)
 
 let mk_opt ?section ?vopt flags value doc kind default =
   let doc = Arg.info ?docs:section ~docv:value ~doc flags in
@@ -140,7 +140,7 @@ let init =
     set_seed seed;
     apply_data_dir data;
     let module Test = (val test: Tests.TEST) in
-    try Test.init kind path with Tests.Not_available -> ()
+    try Test.init kind path with Utils.Not_available -> ()
   in
   Term.(pure init $seed_flag $data_dir $repo_kind_flag $path $test_case),
   term_info "init" ~doc ~man
@@ -150,8 +150,8 @@ let run_test test kind path =
   let result =
     try Test.run kind path; `Ok with
     | Sys.Break -> prerr_endline "[interrupted]"; `No_result
-    | Tests.Not_available -> `Skipped
-    | Tests.Allowed_failure -> `Allowed_fail
+    | Utils.Not_available -> `Skipped
+    | Utils.Allowed_failure -> `Allowed_fail
     | OpamStd.Sys.Exit 0 -> `Ok
     | _ -> `Failed
   in
@@ -235,7 +235,7 @@ let test =
         (OpamFilename.Dir.to_string path)
     then
       OpamFilename.rmdir path;
-    (try Test.init kind path with Tests.Not_available -> ());
+    (try Test.init kind path with Utils.Not_available -> ());
     run_test test kind path
   in
   Term.(pure test $seed_flag $data_dir $repo_kind_flag $path $test_case),
