@@ -21,12 +21,6 @@
 (* Set of tests *)
 open OpamTypes
 
-val set_seed: int -> unit
-val set_datadir: dirname -> unit
-
-exception Not_available
-exception Allowed_failure
-
 module type TEST = sig
   val name: string
   val init: OpamUrl.backend option -> dirname -> unit

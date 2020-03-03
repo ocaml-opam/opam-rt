@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2019 OCamlPro
+ * Copyright (c) 2013-2020 OCamlPro
  * Authors Thomas Gazagnaire <thomas@gazagnaire.org>,
  *         Louis Gesbert <louis.gesbert@ocamlpro.com>,
  *         Raja Boujbel <raja.boujbel@ocamlpro.com>
@@ -17,15 +17,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open OpamTypes
+open Utils
+open OpamFilename.Op
 
-val shuffle: 'a list -> 'a list
+let name = "pin-update"
 
-val package:
-  string -> int -> [> `git | `rsync ] option -> dirname -> ?gener_archive:bool
-  -> int ->Packages.t
+let init_u contents_kind path =
+  log "init-pin-update";
+  Dev_update.init_u contents_kind path;
+  let config = read_config path in
+  let pindir = config.contents_root / "a.0" in
+  OpamFilename.move_dir ~src:(config.contents_root / "a.1") ~dst:pindir;
+  OpamConsole.msg "Pinning a ...\n";
+  Opamlib.pin config.opam_root (OpamPackage.Name.of_string "a") pindir
 
-val create_repo_with_history: dirname -> dirname -> unit
+let init kind = check_and_run kind (init_u kind)
 
-val create_simple_repo:
-  dirname -> dirname -> [> `git | `rsync ] option -> unit
+
+let run  kind = check_and_run kind Dev_update.test_u
