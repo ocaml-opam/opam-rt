@@ -28,6 +28,7 @@ module type TEST = sig
 end
 
 (** Defined tests :
+    * init_setup
     * repo_update
     * dev_update
     * pin_update
