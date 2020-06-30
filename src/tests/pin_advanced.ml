@@ -248,6 +248,7 @@ let run_u path =
   Opamlib.unpin_dir opam_root pindir;
   Opamlib.remove opam_root n;
 
+(*
   OpamConsole.header_msg "Recursive & subpath pinning";
   let a_b = OpamPackage.Name.of_string "a_b" in
   let a_c = OpamPackage.Name.of_string "a_c" in
@@ -325,5 +326,7 @@ let run_u path =
   Opamlib.remove_dir opam_root top_dir;
   List.iter (fun a -> Opamlib.remove_dir opam_root ~subpath:a top_dir) pkgs_path;
   check_installed path []
+*)
+  ()
 
 let run kind = check_and_run kind run_u
