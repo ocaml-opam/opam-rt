@@ -257,7 +257,7 @@ let list =
   term_info "list" ~doc ~man
 
 let default =
-  let doc = "Regression Testing Framework for OPAM" in
+  let doc = "Regression Testing Framework for opam" in
   let man = [
     `P "Use either $(b,opam-rt <command> --help) or $(b,opam-rt help <command>)\
         for more information on a specific command.";
