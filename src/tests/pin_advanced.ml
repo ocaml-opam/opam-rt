@@ -176,6 +176,7 @@ let run_u path =
     "git"
     (v 5);
 
+  (* Working dir *)
   OpamConsole.header_msg "Working-dir pin";
   let pindir = contents_root / "wd" in
   OpamFilename.mkdir pindir;
@@ -247,6 +248,41 @@ let run_u path =
       (OpamStd.Format.itemize (fun x -> x) unvcs_files);
   Opamlib.unpin_dir opam_root pindir;
   Opamlib.remove opam_root n;
+
+  (* Local pin with opam file not versioned *)
+  OpamConsole.header_msg "Not versioned opam file";
+  let pindir = contents_root / "unversioned-opam" in
+  OpamFilename.mkdir pindir;
+  let n = OpamPackage.Name.of_string "unversioned" in
+  let v1 = OpamPackage.Version.of_string "1" in
+  let nv1 = OpamPackage.create n v1 in
+  let somefile = pindir // "somefile" in
+  let opamfile = pindir // "opam" in
+  OpamFilename.write somefile "stuff";
+  let write_version_opam nv =
+    OpamFile.OPAM.create nv
+    |> Packages.mandatory_fields "unversioned"
+    |> OpamFile.OPAM.write (OpamFile.make opamfile)
+  in
+  let pin_and_check nv =
+    Opamlib.pin_dir opam_root pindir;
+    check_pinned opam_root ~kind:"git" [nv];
+    Opamlib.unpin opam_root n;
+    Opamlib.pin_kind opam_root ~kind:"auto" n
+      (OpamFilename.Dir.to_string pindir);
+    check_pinned opam_root ~kind:"git" [nv];
+    Opamlib.unpin opam_root n;
+  in
+  write_version_opam nv1;
+  Git.init pindir;
+  Git.commit_file pindir somefile "Some file";
+  step "Not versioned opam file";
+  pin_and_check nv1;
+  step "Changes not commited in opam file";
+  Git.commit_file pindir opamfile "Opam file";
+  let nv2 = OpamPackage.create n (OpamPackage.Version.of_string "2") in
+  write_version_opam nv2;
+  pin_and_check nv2;
 
 (*
   OpamConsole.header_msg "Recursive & subpath pinning";
