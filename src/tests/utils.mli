@@ -21,7 +21,7 @@ open OpamTypes
 exception Not_available
 exception Allowed_failure
 
-val log: ('a, out_channel, unit) format -> 'a
+val log: ('a, Format.formatter, unit) format -> 'a
 
 val set_seed: int -> unit
 
