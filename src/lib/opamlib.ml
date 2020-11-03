@@ -66,7 +66,7 @@ let opam_out ?(fake=false) ?(env=[]) opam_root command args =
   snd @@ exec ~fake ~env opam_root command args
 
 let var opam_root var =
-  let out = opam_out opam_root "config" ("var" :: [var]) in
+  let out = opam_out opam_root "var" [var] in
   String.concat "\n" out
 
 let init opam_root repo_name repo_url =
@@ -77,7 +77,7 @@ let init opam_root repo_name repo_url =
     "--no-setup"; "--bare"
   ];
   opam opam_root "switch" ["create";"system";"--empty"];
-  opam opam_root "config" ["set";"ocaml-version";"4.02.1"]
+  opam opam_root "var" ["ocaml-version=4.02.1"; "--switch"; "system"]
 
 let wrap_oargs other_args args =
   match other_args with
