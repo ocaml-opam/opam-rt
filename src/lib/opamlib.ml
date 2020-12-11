@@ -37,14 +37,23 @@ let exec ?(fake=false) ?(env=[]) opam_root command args =
     @ (if fake then ["--fake"] else [])
     @ args
   in
+  let clean_output k =
+    OpamFilename.with_tmp_dir_job @@ fun dir ->
+      let f = OpamFilename.Op.(dir // "out") in
+      OpamFilename.touch f;
+      k (Some (OpamFilename.to_string f))
+  in
   let open OpamProcess.Job.Op in
-  OpamProcess.Job.run @@ OpamSystem.make_command
+  OpamProcess.Job.run @@ clean_output @@ fun stdout ->
+    OpamSystem.make_command
     ~env:(Array.concat [Unix.environment(); Array.of_list env])
-    ~verbose:true ~allow_stdin:false
+    ~verbose:true ~allow_stdin:false ?stdout
     "opam" args  @@> (fun r ->
+      let code = r.r_code in
+      let out = r.r_stdout in
       if not (OpamProcess.check_success_and_cleanup r) then
         OpamConsole.msg "Command failed [%d]\n" r.OpamProcess.r_code;
-      Done OpamProcess.(r.r_code,r.r_stdout))
+      Done (code, out))
 
 let opam ?(fake=false) ?(env=[]) opam_root command args =
   let rcode, _ = exec ~fake ~env opam_root command args in
@@ -57,7 +66,7 @@ let opam_out ?(fake=false) ?(env=[]) opam_root command args =
   snd @@ exec ~fake ~env opam_root command args
 
 let var opam_root var =
-  let out = opam_out opam_root "config" ("var" :: [var]) in
+  let out = opam_out opam_root "var" [var] in
   String.concat "\n" out
 
 let init opam_root repo_name repo_url =
@@ -68,7 +77,7 @@ let init opam_root repo_name repo_url =
     "--no-setup"; "--bare"
   ];
   opam opam_root "switch" ["create";"system";"--empty"];
-  opam opam_root "config" ["set";"ocaml-version";"4.02.1"]
+  opam opam_root "var" ["ocaml-version=4.02.1"; "--switch"; "system"]
 
 let wrap_oargs other_args args =
   match other_args with
