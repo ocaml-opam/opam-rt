@@ -296,6 +296,7 @@ let _ =
 
 let () =
   OpamSystem.init ();
+  OpamArg.preinit_opam_envvariables ();
   OpamClientConfig.opam_init ();
   try
     match Term.eval_choice ~catch:false default commands with
