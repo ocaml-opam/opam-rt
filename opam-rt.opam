@@ -12,7 +12,7 @@ dev-repo: "git+https://github.com/ocaml/opam-rt.git"
 build: [ make ]
 depends: [
   "dune" {build}
-  "opam-client"
+  "opam-client" {= "2.1.0~rc"}
   "cohttp-lwt-unix" { < "2.0.0" }
 ]
 synopsis: "Test suite for opam"
