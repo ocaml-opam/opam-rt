@@ -13,7 +13,7 @@ build: [ make ]
 depends: [
   "dune" {build}
   "opam-client"
-  "cohttp-lwt-unix" { < "2.0.0" }
+  "cohttp-lwt-unix"
 ]
 synopsis: "Test suite for opam"
 # If pin depends contains something else than opam lib, opam ci need to be
