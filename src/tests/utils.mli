@@ -44,7 +44,10 @@ val create_config: OpamUrl.backend option -> dirname -> config
 val read_config: dirname -> config
 
 val write_repo_config:
-  dirname -> repository_name -> OpamUrl.t * trust_anchors option -> unit
+  dirname -> repository_name -> OpamUrl.t -> unit
+
+val write_repo_config_t:
+  dirname -> repository_name -> OpamUrl.t * bool * trust_anchors option -> unit
 
 (** Init *)
 val shuffle: 'a list -> 'a list

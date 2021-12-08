@@ -42,7 +42,7 @@ let init_u contents_kind path =
     [ a1; a2; b1; b2 ]
   in
   List.iter (Packages.add repo_root contents_root) packages;
-  write_repo_config path repo_name (repo_url, None);
+  write_repo_config path repo_name repo_url;
   Opamlib.init opam_root repo_name repo_url;
   Opamlib.update opam_root;
   let config = read_config path in
