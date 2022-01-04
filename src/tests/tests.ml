@@ -30,8 +30,5 @@ let tests =
     (module Dev_update  : TEST);
     (module Pin_update  : TEST);
     (module Pin_install : TEST);
-    (module Reinstall   : TEST);
     (module Pin_advanced: TEST);
-    (module Dep_cycle   : TEST);
-    (module Big_upgrade : TEST);
   ]
