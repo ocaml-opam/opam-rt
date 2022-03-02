@@ -74,23 +74,23 @@ let test_u path =
   let step = step () in
   step "Install b (version 2)";
   Opamlib.install opam_root b;
-  check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
+  check_installed path ~roots:[ b-v 2 ] [ b-v 2 ];
   step "Attempt to install b.1 (should fail because a is pinned to 2)";
   should_fail (Opamlib.install_code opam_root b ~version:(v 1)) `No_solution;
-  check_installed path ~roots:[ b-v 2 ] [ a-v 2; b-v 2 ];
+  check_installed path ~roots:[ b-v 2 ] [ a-v 2;];
   step "Cleanup";
   Opamlib.remove opam_root ~auto:true b;
   check_installed path [];
   step "Change pinned version of a to 1";
-  map_overlay (OpamFile.OPAM.with_version (v 1)) a;
+  map_overlay (OpamFile.OPAM.with_version (v 2)) a;
   step "Attempt to install b 2";
-  should_fail (Opamlib.install_code opam_root b ~version:(v 2)) `No_solution;
+  should_fail (Opamlib.install_code opam_root b ~version:(v 4)) `No_solution;
   check_installed path [];
   step "Install b, should get version 1";
   Opamlib.install opam_root b;
   check_installed path ~roots:[ b-v 1 ] [ b-v 1; a-v 1 ];
   step "Change pinned version of installed package a back to 2";
-  map_overlay (OpamFile.OPAM.with_version (v 2)) a;
+  map_overlay (OpamFile.OPAM.with_version (v 4)) a;
   Opamlib.upgrade opam_root [];
   check_installed path ~roots:[ b-v 2 ] [ b-v 2; a-v 2 ];
   (* -- *)
