@@ -36,12 +36,12 @@ let git_out repo args =
   exec repo args
 
 let commit repo fmt =
-  Printf.kprintf (fun msg ->
+  Printf.ksprintf (fun msg ->
       git repo [ "commit"; "-a"; "-m"; msg; "--allow-empty" ]
     ) fmt
 
 let commit_file repo file fmt =
-  Printf.kprintf (fun msg ->
+  Printf.ksprintf (fun msg ->
       if OpamFilename.exists file then
         let file = OpamFilename.remove_prefix repo file in
         git repo [ "add"; file ];
@@ -52,7 +52,7 @@ let commit_file repo file fmt =
     ) fmt
 
 let commit_dir repo dir fmt =
-  Printf.kprintf (fun msg ->
+  Printf.ksprintf (fun msg ->
       if OpamFilename.exists_dir dir then
         let dir = OpamFilename.remove_prefix_dir repo dir in
         let dir = if dir = "" then (OpamFilename.Dir.to_string repo) else dir in
@@ -115,7 +115,7 @@ let checkout repo hash =
   git repo [ "clean"; "-fdx" ]
 
 let msg repo commit package fmt =
-  Printf.kprintf (fun str ->
+  Printf.ksprintf (fun str ->
       OpamConsole.msg "%-25s %s     %-10s %-30s\n"
         (OpamFilename.Dir.to_string repo)
         commit
