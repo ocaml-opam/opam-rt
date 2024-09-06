@@ -83,6 +83,35 @@ let mandatory_fields case ?seed opam =
   |> OpamFile.OPAM.with_descr_opt descr
   |> OpamFile.OPAM.with_dev_repo dev_repo
 
+let add_xfiles files opam =
+  let orig =
+    match OpamFile.OPAM.extra_files opam with
+    | None -> OpamFilename.Base.Map.empty
+    | Some xfiles ->
+      OpamFilename.Base.Map.of_list xfiles
+  in
+  let xfiles =
+    List.fold_left (fun map file ->
+        let bfile =
+          let rec aux = function
+            | "files"::tl ->
+              OpamFilename.Base.of_string
+                (OpamStd.List.concat_map ~left:"" ~right:"" ~nil:""
+                   ~last_sep:Filename.dir_sep Filename.dir_sep Fun.id tl)
+            | _::tl -> aux tl
+            | [] -> failwith (OpamFilename.to_string file)
+          in
+          aux (OpamStd.String.split (OpamFilename.to_string file)
+                 Filename.dir_sep.[0])
+        in
+        OpamFilename.Base.Map.add bfile
+          (OpamHash.compute (OpamFilename.to_string file))
+          map)
+      orig files
+  in
+  OpamFile.OPAM.with_extra_files
+    (OpamFilename.Base.Map.bindings xfiles)
+    opam
 
 let opam nv kind path seed =
   let opam = OpamFile.OPAM.create nv in
@@ -230,16 +259,21 @@ let write repo contents_root t =
     archive
   ];
   OpamFilename.rmdir files;
-  OpamFile.OPAM.write opam t.opam;
+  let opamfile = OpamFile.OPAM.with_extra_files_opt None t.opam in
   write_opt (OpamFilename.write archive) t.archive;
   content_write contents_root t.nv t.contents;
-  if t.files <> [] then
-    (OpamFilename.mkdir files;
-     List.iter (fun (base, str, mode) ->
-         let file = OpamFilename.create files base in
-         OpamFilename.write file str;
-         OpamFilename.chmod file mode
-       ) t.files)
+  let opamfile =
+    if t.files <> [] then
+      (OpamFilename.mkdir files;
+       List.fold_left (fun opam (base, str, mode) ->
+           let file = OpamFilename.create files base in
+           OpamFilename.write file str;
+           OpamFilename.chmod file mode;
+           add_xfiles [file] opam)
+         opamfile t.files)
+    else opamfile
+  in
+  OpamFile.OPAM.write opam opamfile
 
 let read_opt f file =
   if OpamFilename.exists file then Some (f file)
@@ -264,20 +298,17 @@ let read repo contents_root prefix nv =
 let add repo contents_root t =
   write repo contents_root t;
   let opam, files, _ = file_list_of_t repo t in
-  let commit file =
-    if OpamFilename.exists file then
-      (Git.add repo file;
-       Git.commit_file repo file
-         "Add package %s (%s)"
-         (OpamPackage.to_string t.nv) (OpamFilename.to_string file);
-       let commit = Git.revision repo in
-       Git.msg repo commit t.nv "Add %s" (OpamFilename.to_string file))
-  in
-  commit (OpamFile.filename opam);
-  if OpamFilename.exists_dir files then
-    (let all = OpamFilename.rec_files files in
-     List.iter (Git.add repo) all;
-     Git.commit_dir repo files
-       "Adding files/* for package %s" (OpamPackage.to_string t.nv);
+  let opamf = (OpamFile.filename opam) in
+  let opamfile_present = OpamFilename.exists opamf in
+  let files_present = OpamFilename.exists_dir files in
+  if opamfile_present then
+    (Git.add repo opamf;
+     if files_present then Git.add_dir repo files;
+     Git.commit repo "Add package %s (%s%s)"
+       (OpamPackage.to_string t.nv)
+       (OpamFilename.to_string opamf)
+       (if files_present then " and files/*" else "");
      let commit = Git.revision repo in
-     Git.msg repo commit t.nv "Add %s" (OpamFilename.Dir.to_string files))
+     Git.msg repo commit t.nv "Add %s%s"
+       (OpamFilename.to_string opamf)
+       (if files_present then " and files/*" else ""))
