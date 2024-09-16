@@ -27,6 +27,9 @@ val commit_file:
 val commit_dir:
   dirname -> dirname -> ('a, unit, string, unit) format4 -> 'a
 
+val commit_files_and_dirs:
+  dirname -> filename list -> dirname list -> ('a, unit, string, unit) format4 -> 'a
+
 val revision: dirname -> string
 
 val commits: dirname -> string list
@@ -40,6 +43,8 @@ val branch: dirname -> unit
 val master: dirname -> unit
 
 val add: dirname -> filename -> unit
+
+val add_dir: dirname -> dirname -> unit
 
 val add_list: dirname -> filename list -> unit
 
