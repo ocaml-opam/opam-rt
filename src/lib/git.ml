@@ -40,6 +40,30 @@ let commit repo fmt =
       git repo [ "commit"; "-a"; "-m"; msg; "--allow-empty" ]
     ) fmt
 
+let commit_files_and_dirs repo files dirs fmt =
+  Printf.ksprintf (fun msg ->
+      if List.for_all OpamFilename.exists files
+      && List.for_all OpamFilename.exists_dir dirs then
+        (git repo ("add" ::
+                   List.map (OpamFilename.remove_prefix repo) files);
+         git repo ("add" :: "--all" ::
+                   List.map (OpamFilename.remove_prefix_dir repo) dirs);
+         git repo [ "commit"; "-m"; msg; "--allow-empty" ])
+      else
+        let missing =
+          List.filter_map (fun file ->
+              if OpamFilename.exists file then None else
+                Some (OpamFilename.to_string file))
+            files
+          @ List.filter_map (fun dir ->
+              if OpamFilename.exists_dir dir then None else
+                Some (OpamFilename.Dir.to_string dir))
+            dirs
+        in
+        OpamConsole.error_and_exit `Internal_error
+          "Cannot commit %s" (OpamStd.Format.pretty_list missing)
+    ) fmt
+
 let commit_file repo file fmt =
   Printf.ksprintf (fun msg ->
       if OpamFilename.exists file then
@@ -87,6 +111,12 @@ let add repo file =
   if OpamFilename.exists file then
     let file = OpamFilename.remove_prefix repo file in
     git repo [ "add"; file ]
+
+let add_dir repo dir =
+  if OpamFilename.exists_dir dir then
+    let dir = OpamFilename.remove_prefix_dir repo dir in
+    let dir = if dir = "" then (OpamFilename.Dir.to_string repo) else dir in
+    git repo [ "add"; "--all"; dir ]
 
 let add_list repo files =
   let files = List.filter OpamFilename.exists files in
