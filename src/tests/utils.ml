@@ -99,15 +99,14 @@ let read_config path =
   let opam_root = path / "opam" in
   let repo_root = path / "repo" in
   let repo_url, _repo_trust =
-    OpamStd.Option.default (OpamUrl.empty, None)
-      (OpamRepositoryName.Map.find repo_name repos)
+    OpamRepositoryName.Map.find repo_name repos
   in
   let contents_root = path / "contents" in
   { repo_name; repo_root; repo_url; opam_root; contents_root }
 
 let write_repo_config path repo_name repo_url =
   OpamFile.Repos_config.write (repos_config_file path)
-    (OpamRepositoryName.Map.singleton repo_name (Some repo_url))
+    (OpamRepositoryName.Map.singleton repo_name repo_url)
 
 
 (** Init *)
