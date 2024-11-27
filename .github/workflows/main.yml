@@ -1,0 +1,10 @@
+name: Run CI
+on: [pull_request]
+
+jobs:
+  pull_request_ci:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Run PR CI
+        run: env
