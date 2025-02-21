@@ -36,7 +36,7 @@ let init kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
   create_simple_repo repo_root contents_root kind;
-  write_repo_config path repo_name (repo_url, None);
+  write_repo_config path repo_name repo_url None;
   OpamConsole.msg "Initializing an opam instance in %s/ ...\n"
     (OpamFilename.Dir.to_string opam_root);
   OpamClientConfig.update ();

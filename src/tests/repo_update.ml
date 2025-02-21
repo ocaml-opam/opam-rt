@@ -30,7 +30,7 @@ let init_u kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
   create_repo_with_history repo_root contents_root;
-  write_repo_config path repo_name (repo_url, None);
+  write_repo_config path repo_name repo_url None;
   let stop_server = start_file_server repo_root repo_url in
   try
     OpamConsole.msg
