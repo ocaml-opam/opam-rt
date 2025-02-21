@@ -30,7 +30,7 @@ let init_u contents_kind path =
     "Creating a new repository in %s/ ...\n"
     (OpamFilename.Dir.to_string repo_root);
   create_simple_repo repo_root contents_root contents_kind;
-  write_repo_config path repo_name (repo_url, None);
+  write_repo_config path repo_name repo_url None;
   Opamlib.init opam_root repo_name repo_url;
   Opamlib.update opam_root
 
