@@ -245,7 +245,7 @@ let check_pinned path ?kind wished =
     match kind with
     | None -> List.map List.hd packages
     | Some k ->
-      OpamStd.List.filter_map (fun l ->
+      List.filter_map (fun l ->
           match l with
           | nv::"(uninstalled)"::kind::_url::([_;_]|[])
           | nv::kind::_url::([_;_]|[]) ->

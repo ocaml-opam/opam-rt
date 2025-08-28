@@ -220,7 +220,7 @@ let run_u path =
   Opamlib.install opam_root ~oargs:"--working-dir" n;
   check_installed path [nv];
   let check_files lst =
-    OpamStd.List.filter_map (fun (filename, content) ->
+    List.filter_map (fun (filename, content) ->
         let file =
           opam_root / "system" / ".opam-switch" / "sources" /
           "workingdir" // filename

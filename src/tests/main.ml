@@ -181,7 +181,7 @@ let run_test test kind path =
   in
   let current =
     List.filter
-      (fun s -> not (OpamStd.String.starts_with ~prefix:title s))
+      (fun s -> not (OpamCompat.String.starts_with ~prefix:title s))
       current
   in
   let results =
