@@ -98,15 +98,17 @@ let read_config path =
   let repo_name = base_repo_name in
   let opam_root = path / "opam" in
   let repo_root = path / "repo" in
-  let repo_url, _repo_trust =
-    OpamRepositoryName.Map.find repo_name repos
+  let repo_url =
+    let repo = OpamRepositoryName.Map.find repo_name repos in
+    repo.OpamFile.Repos_config.repoc_url
   in
   let contents_root = path / "contents" in
   { repo_name; repo_root; repo_url; opam_root; contents_root }
 
-let write_repo_config path repo_name repo_url =
+let write_repo_config path repo_name repoc_url repoc_trust =
   OpamFile.Repos_config.write (repos_config_file path)
-    (OpamRepositoryName.Map.singleton repo_name repo_url)
+    (OpamRepositoryName.Map.singleton repo_name
+       OpamFile.Repos_config.{ repoc_url; repoc_trust })
 
 
 (** Init *)
