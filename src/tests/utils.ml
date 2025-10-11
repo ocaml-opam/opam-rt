@@ -160,7 +160,7 @@ let create_repo_with_history repo contents_root =
   let repo_file =
     OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ()
   in
-  let repo_filename = OpamRepositoryPath.repo repo in
+  let repo_filename = OpamRepositoryPath.repo (OpamRepositoryRoot.Dir.of_dir repo) in
   OpamFile.Repo.write repo_filename repo_file;
   Git.commit_file repo (OpamFile.filename repo_filename) "Initialise repo";
   let all = [
@@ -171,7 +171,7 @@ let create_repo_with_history repo contents_root =
     a2 contents_root 1;
     a2 contents_root 0;
   ] @ random_list 5 (ar contents_root) in
-  List.iter (Packages.add repo contents_root) all;
+  List.iter (Packages.add (OpamRepositoryRoot.Dir.of_dir repo) contents_root) all;
   Git.branch repo
 
 (* Create a repository with a single package without archive file and
@@ -182,13 +182,13 @@ let create_simple_repo repo contents_root contents_kind =
   let repo_file =
     OpamFile.Repo.create ~opam_version:OpamFile.Repo.format_version ()
   in
-  let repo_filename = OpamRepositoryPath.repo repo in
+  let repo_filename = OpamRepositoryPath.repo (OpamRepositoryRoot.Dir.of_dir repo) in
   OpamFile.Repo.write repo_filename repo_file;
   Git.commit_file repo (OpamFile.filename repo_filename) "Initialise repo";
   let package0 =
     package "a" 1 contents_kind contents_root ~gener_archive:false 10
   in
-  Packages.add repo contents_root package0;
+  Packages.add (OpamRepositoryRoot.Dir.of_dir repo) contents_root package0;
   let all =
     package0
     :: random_list 20 (fun _ ->
@@ -197,7 +197,7 @@ let create_simple_repo repo contents_root contents_kind =
       )
   in
   List.iter (fun package ->
-      Packages.write repo contents_root package
+      Packages.write (OpamRepositoryRoot.Dir.of_dir repo) contents_root package
     ) all;
   Git.branch OpamFilename.Op.(contents_root / "a.1");
 

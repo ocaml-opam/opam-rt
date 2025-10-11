@@ -183,8 +183,9 @@ let file_list repo prefix nv =
   let opam = OpamRepositoryPath.opam repo prefix nv in
   let files = OpamRepositoryPath.files repo prefix nv in
   let archive =
+    let ( /// ) = OpamRepositoryRoot.Dir.Op.( / ) in
     OpamFilename.Op.(
-      repo / ".." / "repo_archives" // (OpamPackage.to_string nv ^ ".tar.gz"))
+      repo /// ".." / "repo_archives" // (OpamPackage.to_string nv ^ ".tar.gz"))
   in
   opam, files, archive
 
@@ -302,7 +303,8 @@ let add repo contents_root t =
   let opamfile_present = OpamFilename.exists opamf in
   let files_present = OpamFilename.exists_dir files in
   if opamfile_present then
-    (Git.add repo opamf;
+    (let repo = OpamRepositoryRoot.Dir.to_dir repo in
+     Git.add repo opamf;
      if files_present then Git.add_dir repo files;
      Git.commit repo "Add package %s (%s%s)"
        (OpamPackage.to_string t.nv)

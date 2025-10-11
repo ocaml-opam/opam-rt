@@ -19,6 +19,6 @@
 
 open OpamTypes
 
-val packages: dirname -> dirname -> unit
+val packages: OpamRepositoryRoot.Dir.t -> dirname -> unit
 
 val contents: dirname -> package -> OpamFile.OPAM.t -> unit

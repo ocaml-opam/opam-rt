@@ -44,11 +44,12 @@ let test_u path =
   let { repo_root; opam_root; _ } =
     read_config path
   in
-  let opams = Opamlib.repo_opams repo_root in
+  let opams = Opamlib.repo_opams (OpamRepositoryRoot.Dir.of_dir repo_root) in
   let opams =
     OpamPackage.Map.union (fun _ x -> x) opams @@
     Opamlib.repo_opams
-      (OpamPath.Switch.Overlay.dir opam_root Opamlib.default_switch)
+      (OpamRepositoryRoot.Dir.of_dir
+         (OpamPath.Switch.Overlay.dir opam_root Opamlib.default_switch))
   in
   let packages =
     OpamPackage.Map.fold (fun nv opam acc ->

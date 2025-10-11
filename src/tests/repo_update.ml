@@ -62,7 +62,7 @@ let test_u path =
       update_server_index repo_root repo_url;
       Opamlib.update opam_root;
       Opamlib.upgrade opam_root [];
-      Check.packages repo_root opam_root;
+      Check.packages (OpamRepositoryRoot.Dir.of_dir repo_root) opam_root;
     ) (shuffle commits);
   stop_server ()
 
