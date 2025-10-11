@@ -41,7 +41,7 @@ let init_u contents_kind path =
     let b2 = Packages.add_depend b2 "a" ~formula:(Atom (`Eq, FString "2")) in
     [ a1; a2; b1; b2 ]
   in
-  List.iter (Packages.add repo_root contents_root) packages;
+  List.iter (Packages.add (OpamRepositoryRoot.Dir.of_dir repo_root) contents_root) packages;
   write_repo_config path repo_name (repo_url, None);
   Opamlib.init opam_root repo_name repo_url;
   Opamlib.update opam_root;
@@ -98,7 +98,7 @@ let test_u path =
   Opamlib.remove opam_root a;
   Opamlib.unpin opam_root a;
   let a3 = package "a" 3 (Some `rsync) contents_root 452 in
-  Packages.add repo_root contents_root a3;
+  Packages.add (OpamRepositoryRoot.Dir.of_dir repo_root) contents_root a3;
   Opamlib.update opam_root;
   check_installed path [];
   step "Pin a to version 2 and install";

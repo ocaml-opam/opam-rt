@@ -47,11 +47,11 @@ val prefix: package -> string option
 
 val files: int -> (basename * string * int) list
 
-val write: dirname -> dirname -> t -> unit
+val write: OpamRepositoryRoot.Dir.t -> dirname -> t -> unit
 
-val read: dirname -> dirname -> string option -> package -> t
+val read: OpamRepositoryRoot.Dir.t -> dirname -> string option -> package -> t
 
-val add: dirname -> dirname -> t -> unit
+val add: OpamRepositoryRoot.Dir.t -> dirname -> t -> unit
 
 (** Create package content *)
 
@@ -60,4 +60,3 @@ val content_create: package -> int -> (basename * string * int) list
 val content_read: dirname -> package -> (basename * string * int) list
 
 val content_write: dirname -> package -> (basename * string * int) list -> unit
-
