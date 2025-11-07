@@ -12,7 +12,7 @@ dev-repo: "git+https://github.com/ocaml/opam-rt.git"
 build: [ make ]
 depends: [
   "dune" {build}
-  "cmdliner"
+  "cmdliner" {< "2.0"}
   "opam-client"
   "cohttp-lwt-unix"
 ]
