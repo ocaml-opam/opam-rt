@@ -94,19 +94,24 @@ let read_config path =
   if not (OpamFilename.exists_dir path) then
     OpamConsole.error_and_exit `Configuration_error
       "opam-rt has not been initialized properly";
-  let repos = OpamFile.Repos_config.read (repos_config_file path) in
+  let repos =
+    OpamFile.Repos_config.repos
+      (OpamFile.Repos_config.read (repos_config_file path))
+  in
   let repo_name = base_repo_name in
   let opam_root = path / "opam" in
   let repo_root = path / "repo" in
-  let repo_url, _repo_trust =
+  let {OpamFile.Repo_config.url = repo_url; _} =
     OpamRepositoryName.Map.find repo_name repos
   in
   let contents_root = path / "contents" in
   { repo_name; repo_root; repo_url; opam_root; contents_root }
 
-let write_repo_config path repo_name repo_url =
+let write_repo_config path repo_name (repo_url, repo_trust) =
   OpamFile.Repos_config.write (repos_config_file path)
-    (OpamRepositoryName.Map.singleton repo_name repo_url)
+    (OpamFile.Repos_config.create
+       (OpamRepositoryName.Map.singleton repo_name
+          (OpamFile.Repo_config.create ?trust:repo_trust repo_url)))
 
 
 (** Init *)
