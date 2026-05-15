@@ -95,9 +95,9 @@ let run_u path =
     check_installed path [a-pin_version];
     check_pkg_shares a ["pinned_5"];
     step "Change in-source opam and update";
-    pin_update a (fun () ->
-        OpamFilename.remove (OpamFilename.of_string "opam");
-        let opdir = OpamFilename.Dir.of_string "opam" in
+    pin_update a (fun d ->
+        OpamFilename.remove (d // "opam");
+        let opdir = d / "opam" in
         OpamFilename.mkdir opdir;
         write_opam (a-v 5) ["repin_5"] (opdir // "opam"));
     Opamlib.upgrade opam_root [a];
@@ -109,9 +109,9 @@ let run_u path =
       (write_opam
          ~url:(OpamFile.URL.create (OpamUrl.of_string (pin_target a)))
          (a-v 5) ["pin-edit_bis"]);
-    pin_update a (fun () ->
+    pin_update a (fun d ->
         write_opam (a-v 5) ["repin_5bis"]
-          (OpamFilename.Dir.of_string "opam" // "opam"));
+          (d / "opam" // "opam"));
     (* We are on --yes so the source version should win *)
     Opamlib.upgrade opam_root [a];
     check_installed path [a-pin_version];
@@ -124,9 +124,9 @@ let run_u path =
     check_installed path [a-v 100];
     check_pkg_shares a ["pin-edit-v100"];
     step "Create new package z by pinning";
-    pin_update z (fun () ->
-        OpamFilename.write (OpamFilename.of_string "contents") "contents";
-        write_opam (z-v 2) ["pkg-b";"no-repo"] (OpamFilename.of_string "opam"));
+    pin_update z (fun d ->
+        OpamFilename.write (d // "contents") "contents";
+        write_opam (z-v 2) ["pkg-b";"no-repo"] (d // "opam"));
     Opamlib.pin_kind opam_root ~action:true ~kind:pin_kind z (pin_target z);
     check_installed path [a-v 100; z-v 2];
     check_pkg_shares z ["pkg-b";"no-repo"];
@@ -146,7 +146,7 @@ let run_u path =
   let pin_update name f =
     let d = pindir / OpamPackage.Name.to_string name in
     OpamFilename.mkdir d;
-    OpamFilename.in_dir d f in
+    f d in
   tests pin_update
     (fun name ->
        "file://" ^
@@ -162,14 +162,14 @@ let run_u path =
     OpamFilename.mkdir d;
     if not (OpamFilename.exists_dir (d/".git")) then
       Git.init d;
-    OpamFilename.in_dir d f;
+    f d;
     Git.commit_dir d d "Some commit to %s"
       (OpamPackage.Name.to_string name)
   in
   OpamFilename.copy_dir ~src:(contents_root / "a.1") ~dst:(pindir / "a");
   Git.master (pindir / "a");
-  pin_update a (fun () ->
-      write_opam (a-v 5) ["pinned_5"] (OpamFilename.of_string "opam"));
+  pin_update a (fun d ->
+      write_opam (a-v 5) ["pinned_5"] (d // "opam"));
   tests pin_update
     (fun name ->
        OpamFilename.Dir.to_string (pindir / OpamPackage.Name.to_string name))
