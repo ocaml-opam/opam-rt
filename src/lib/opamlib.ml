@@ -21,7 +21,7 @@ let default_switch = OpamSwitch.of_string "system"
 
 let repo_opams repo =
   OpamPackage.Map.mapi (fun nv pfx ->
-      OpamRepositoryPath.packages repo pfx nv |>
+      OpamRepositoryRoot.Dir.Path.packages repo pfx nv |>
       OpamFileTools.read_opam |>
       function Some x -> x | None -> assert false)
     (OpamRepository.packages_with_prefixes repo)

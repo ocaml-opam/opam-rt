@@ -26,7 +26,7 @@ val default_switch: switch
 
 (** opam-lib functions *)
 
-val repo_opams: dirname -> OpamFile.OPAM.t package_map
+val repo_opams: OpamRepositoryRoot.Dir.t -> OpamFile.OPAM.t package_map
 
 
 (** CLI functions *)
@@ -86,4 +86,3 @@ val pinned: dirname -> string list list
 val import: dirname -> ?fake:bool -> filename -> unit
 
 val export: dirname -> filename -> unit
-
