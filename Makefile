@@ -7,9 +7,8 @@ KINDS = local http git
 all: opam-rt
 
 opam-rt:
-	dune build --root . src/lib/opam_rt_lib.cma src/tests/main.exe src/server/server.exe
+	dune build --root . src/lib/opam_rt_lib.cma src/tests/main.exe
 	ln -f _build/default/src/tests/main.exe opam-rt
-	ln -f _build/default/src/server/server.exe opam-rt-server
 
 show_results = @sed -e 's/\tOK/\t[32mOK[m/' -e 's/\tFAILOK/\t[33mFAILOK[m/' -e 's/\tFAIL/\t[31mFAIL[m/' results
 
@@ -41,4 +40,4 @@ run:
 	@if [ -e failed ]; then rm failed; false; fi
 
 clean:
-	rm -rf _build opam-rt opam-rt-server $(TESTDIR)
+	rm -rf _build opam-rt $(TESTDIR)

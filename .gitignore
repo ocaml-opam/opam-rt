@@ -1,7 +1,6 @@
 *~
 .*.sw*
 _build/
-opam-rt-server
 opam-rt
 results
 dune-project
