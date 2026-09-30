@@ -23,6 +23,8 @@ open OpamTypes
 exception Not_available
 exception Allowed_failure
 
+let port = "1234"
+
 let log fmt =
   OpamConsole.log "RT" fmt
 
@@ -76,7 +78,7 @@ let create_config kind path =
         hash = Some Git.test_tag }
     | Some `http  ->
       { OpamUrl.backend = `http;
-        transport = "http";  path = "127.0.0.1:1234";
+        transport = "http";  path = "127.0.0.1:" ^ port;
         hash = None }
     | Some `rsync
     | None        ->
@@ -280,13 +282,13 @@ let update_server_index repo_root repo_url =
 let start_file_server repo_root repo_url =
   match repo_url.OpamUrl.backend with
   | `http ->
-    let cmd = Filename.concat (Sys.getcwd ()) "opam-rt-server" in
     OpamFilename.mkdir repo_root;
     update_server_index repo_root repo_url;
     let dir = OpamFilename.Dir.to_string repo_root in
     let p =
       OpamProcess.run_background
-        (OpamProcess.command ~dir cmd [OpamFilename.Dir.to_string repo_root])
+        (OpamProcess.command ~dir "micro_httpd"
+           ["-p"; port; OpamFilename.Dir.to_string repo_root])
     in
     let stop () =
       try

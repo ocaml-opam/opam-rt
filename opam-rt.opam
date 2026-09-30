@@ -14,7 +14,7 @@ depends: [
   "dune" {build}
   "cmdliner" {< "2.0"}
   "opam-client"
-  "cohttp-lwt-unix"
+  "micro_httpd"
 ]
 synopsis: "Test suite for opam"
 # If pin depends contains something else than opam lib, opam ci need to be
