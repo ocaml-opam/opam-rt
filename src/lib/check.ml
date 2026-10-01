@@ -168,7 +168,7 @@ let contents opam_root nv opam_file =
     let bins =
       OpamPath.Switch.Default.bin opam_root Opamlib.default_switch
     in
-    Attr.Map.union (fun _ _ -> failwith "union")
+    Attr.Map.strict_union (fun _ _ -> failwith "union")
       (attributes libs)
       (attributes bins)
   in
@@ -195,6 +195,6 @@ let contents opam_root nv opam_file =
       | Some (_, d) ->
         attributes OpamFilename.(Op.(Dir.of_string d  / "files"))
     in
-    Attr.Map.union (fun x _ -> x) files base
+    Attr.Map.strict_union (fun x _ -> x) files base
   in
   check_attributes ("opam", opam) ("contents", contents)

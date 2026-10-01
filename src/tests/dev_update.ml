@@ -46,7 +46,7 @@ let test_u path =
   in
   let opams = Opamlib.repo_opams (OpamRepositoryRoot.Dir.of_dir repo_root) in
   let opams =
-    OpamPackage.Map.union (fun _ x -> x) opams @@
+    OpamPackage.Map.strict_union (fun _ x -> x) opams @@
     Opamlib.repo_opams
       (OpamRepositoryRoot.Dir.of_dir
          (OpamPath.Switch.Overlay.dir opam_root Opamlib.default_switch))
